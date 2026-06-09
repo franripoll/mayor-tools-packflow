@@ -1686,7 +1686,7 @@ document.getElementById('confirm-dialog').addEventListener('click',function(e){
 // ─────────────────────────────────────────
 // CONSUMO
 // ─────────────────────────────────────────
-function openConsumoModal(){
+async function openConsumoModal(){
   const refs = (await dbGet('refs'));
   const sel = document.getElementById('con-ref');
   sel.innerHTML = '<option value="">Selecciona referencia...</option>' +
@@ -2264,7 +2264,7 @@ async function renderPedidos(){
 }
 
 // PDF EXPORT
-function exportPedidoPDF(pedidoId){
+async function exportPedidoPDF(pedidoId){
   const pedido=(await dbGet('pedidos')).find(p=>p.id===pedidoId);
   if(!pedido) return;
 
