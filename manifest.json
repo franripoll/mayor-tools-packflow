@@ -1,0 +1,14 @@
+{
+  "name": "PackFlow · Mayor Tools",
+  "short_name": "PackFlow",
+  "description": "Gestión de producción y embalaje · Cerámica Mayor",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F1117",
+  "theme_color": "#0F1117",
+  "orientation": "any",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

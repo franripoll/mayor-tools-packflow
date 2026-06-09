@@ -1,0 +1,3227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PackFlow · Mayor Tools</title>
+  <meta name="description" content="Gestió de producció i embalatge · Ceràmica Mayor" />
+  <meta name="theme-color" content="#0F1117" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#0F1117; --sidebar:#161B22; --surface:#1C2330; --surface2:#21262D;
+      --border:#21262D; --border2:#30363D;
+      --accent:#58A6FF; --accent-dim:#1C3A5E;
+      --alert:#F0883E; --alert-dim:#4A2410;
+      --success:#3FB950; --success-dim:#0D3320;
+      --text:#CDD9E5; --text2:#8B949E; --text3:#484F58;
+      --font:'Inter','Segoe UI',system-ui,sans-serif;
+      --r:6px; --rl:10px; --sidebar-w:220px; --topbar-h:52px;
+    }
+    html,body { height:100%; background:var(--bg); color:var(--text); font-family:var(--font); font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased; }
+
+    /* LAYOUT */
+    #app { display:flex; height:100vh; overflow:hidden; }
+
+    /* SIDEBAR */
+    #sidebar { width:var(--sidebar-w); background:var(--sidebar); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; transition:transform .25s ease; z-index:100; }
+    .s-logo { padding:18px 20px 16px; border-bottom:1px solid var(--border); }
+    .s-logo-eco { font-size:10px; color:var(--text3); letter-spacing:.1em; text-transform:uppercase; font-weight:500; }
+    .s-logo-name { font-size:18px; font-weight:600; color:var(--text); letter-spacing:.02em; margin-top:2px; }
+    .s-logo-name span { color:var(--accent); }
+    .s-nav { flex:1; padding:10px 0; overflow-y:auto; }
+    .s-label { font-size:10px; color:var(--text3); letter-spacing:.1em; text-transform:uppercase; font-weight:500; padding:14px 20px 6px; }
+    .nav-item { display:flex; align-items:center; gap:10px; padding:9px 20px; font-size:14px; color:var(--text2); cursor:pointer; border-left:2px solid transparent; transition:all .15s; user-select:none; }
+    .nav-item:hover { color:var(--text); background:rgba(255,255,255,.04); }
+    .nav-item.active { color:var(--accent); background:rgba(88,166,255,.08); border-left-color:var(--accent); }
+    .nav-item svg { width:16px; height:16px; flex-shrink:0; opacity:.8; }
+    .nav-item.active svg { opacity:1; }
+    .s-footer { padding:14px 20px; border-top:1px solid var(--border); font-size:11px; color:var(--text3); }
+    .s-footer span { color:var(--text2); }
+
+    /* MAIN */
+    #main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+    #topbar { height:var(--topbar-h); background:var(--sidebar); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:16px; flex-shrink:0; }
+    #menu-toggle { display:none; background:none; border:none; color:var(--text2); cursor:pointer; padding:4px; }
+    .tb-title { font-size:14px; font-weight:500; color:var(--text); }
+    .tb-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+    .tb-date { font-size:12px; color:var(--text2); }
+    .status-dot { width:7px; height:7px; border-radius:50%; background:var(--success); box-shadow:0 0 0 2px var(--success-dim); }
+
+    #content { flex:1; overflow-y:auto; padding:28px; }
+
+    /* PAGES */
+    .page { display:none; }
+    .page.active { display:block; }
+
+    /* PAGE HEADER */
+    .ph { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:24px; gap:16px; }
+    .ph-left {}
+    .ph-title { font-size:18px; font-weight:600; color:var(--text); }
+    .ph-sub { font-size:12px; color:var(--text2); margin-top:4px; }
+
+    /* BUTTONS */
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:var(--r); font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all .15s; line-height:1; font-family:var(--font); }
+    .btn svg { width:14px; height:14px; }
+    .btn-primary { background:var(--accent); color:#0F1117; }
+    .btn-primary:hover { background:#79BBFF; }
+    .btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border2); }
+    .btn-secondary:hover { background:var(--surface); }
+    .btn-ghost { background:transparent; color:var(--text2); border:1px solid var(--border); }
+    .btn-ghost:hover { color:var(--text); background:var(--surface2); }
+    .btn-danger { background:transparent; color:#F85149; border:1px solid rgba(248,81,73,.3); }
+    .btn-danger:hover { background:rgba(248,81,73,.1); }
+    .btn-sm { padding:5px 10px; font-size:12px; }
+
+    /* CARDS */
+    .card { background:var(--sidebar); border:1px solid var(--border); border-radius:var(--rl); padding:20px; }
+
+    /* STAT GRID */
+    .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:24px; }
+    .stat-card { background:var(--sidebar); border:1px solid var(--border); border-radius:var(--rl); padding:16px 18px; }
+    .stat-label { font-size:11px; color:var(--text2); text-transform:uppercase; letter-spacing:.08em; font-weight:500; margin-bottom:6px; }
+    .stat-value { font-size:26px; font-weight:600; color:var(--text); line-height:1; }
+    .stat-value.accent { color:var(--accent); }
+    .stat-value.alert  { color:var(--alert); }
+    .stat-value.success { color:var(--success); }
+    .stat-sub { font-size:11px; color:var(--text2); margin-top:4px; }
+
+    /* TABLE */
+    .table-wrap { background:var(--sidebar); border:1px solid var(--border); border-radius:var(--rl); overflow:hidden; }
+    table { width:100%; border-collapse:collapse; }
+    thead th { text-align:left; font-size:11px; font-weight:500; color:var(--text2); text-transform:uppercase; letter-spacing:.08em; padding:10px 16px; background:var(--surface2); border-bottom:1px solid var(--border); }
+    tbody td { padding:11px 16px; font-size:13px; color:var(--text); border-bottom:1px solid var(--border); vertical-align:middle; }
+    tbody tr:last-child td { border-bottom:none; }
+    tbody tr:hover td { background:rgba(255,255,255,.02); }
+    .td-muted { color:var(--text2) !important; font-size:12px !important; }
+    .td-actions { display:flex; gap:6px; justify-content:flex-end; }
+
+    /* BADGES */
+    .badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:500; padding:3px 9px; border-radius:99px; }
+    .badge-ok     { background:var(--success-dim); color:var(--success); }
+    .badge-alert  { background:var(--alert-dim); color:var(--alert); }
+    .badge-accent { background:var(--accent-dim); color:var(--accent); }
+    .badge-neutral{ background:var(--surface2); color:var(--text2); }
+
+    /* FORMS */
+    .form-group { margin-bottom:16px; }
+    .form-row { display:grid; gap:12px; }
+    .form-row-2 { grid-template-columns:1fr 1fr; }
+    .form-row-3 { grid-template-columns:1fr 1fr 1fr; }
+    .form-label { display:block; font-size:12px; font-weight:500; color:var(--text2); margin-bottom:6px; }
+    .form-label .req { color:var(--alert); margin-left:2px; }
+    .form-input, .form-select, .form-textarea {
+      width:100%; background:var(--surface2); border:1px solid var(--border2);
+      border-radius:var(--r); color:var(--text); font-size:13px; padding:9px 12px;
+      font-family:var(--font); outline:none; transition:border-color .15s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color:var(--accent); }
+    .form-select option { background:var(--sidebar); }
+    .form-hint { font-size:11px; color:var(--text3); margin-top:4px; }
+    .form-divider { height:1px; background:var(--border); margin:20px 0; }
+
+    /* MODAL */
+    .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:200; align-items:center; justify-content:center; padding:20px; }
+    .modal-backdrop.open { display:flex; }
+    .modal { background:var(--sidebar); border:1px solid var(--border2); border-radius:var(--rl); width:100%; max-width:520px; max-height:90vh; display:flex; flex-direction:column; }
+    .modal-header { padding:20px 24px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+    .modal-title { font-size:15px; font-weight:600; color:var(--text); }
+    .modal-close { background:none; border:none; color:var(--text2); cursor:pointer; padding:4px; border-radius:var(--r); }
+    .modal-close:hover { color:var(--text); background:var(--surface2); }
+    .modal-close svg { width:18px; height:18px; display:block; }
+    .modal-body { padding:20px 24px; overflow-y:auto; flex:1; }
+    .modal-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; flex-shrink:0; }
+
+    /* FABRICANTES CHIPS */
+    .fab-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; min-height:32px; }
+    .fab-chip { display:inline-flex; align-items:center; gap:6px; background:var(--accent-dim); color:var(--accent); font-size:12px; font-weight:500; padding:4px 10px; border-radius:99px; }
+    .fab-chip-remove { background:none; border:none; color:var(--accent); cursor:pointer; padding:0; line-height:1; font-size:14px; opacity:.7; }
+    .fab-chip-remove:hover { opacity:1; }
+    .fab-add-row { display:flex; gap:8px; margin-top:8px; }
+    .fab-add-row .form-input { flex:1; }
+
+    /* EMPTY STATE */
+    .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:300px; gap:12px; }
+    .empty-state svg { width:44px; height:44px; opacity:.2; }
+    .empty-state-title { font-size:15px; font-weight:500; color:var(--text2); }
+    .empty-state-sub { font-size:13px; color:var(--text3); text-align:center; max-width:320px; }
+
+    /* SECTION TABS */
+    .section-tabs { display:flex; gap:2px; background:var(--surface2); border-radius:var(--r); padding:3px; margin-bottom:20px; width:fit-content; }
+    .section-tab { padding:6px 14px; border-radius:4px; font-size:13px; color:var(--text2); cursor:pointer; transition:all .15s; }
+    .section-tab.active { background:var(--sidebar); color:var(--text); }
+
+    /* CONFIRM DIALOG */
+    .confirm-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:300; align-items:center; justify-content:center; }
+    .confirm-backdrop.open { display:flex; }
+    .confirm-box { background:var(--sidebar); border:1px solid var(--border2); border-radius:var(--rl); padding:24px; max-width:360px; width:100%; margin:20px; }
+    .confirm-title { font-size:15px; font-weight:600; color:var(--text); margin-bottom:8px; }
+    .confirm-msg { font-size:13px; color:var(--text2); margin-bottom:20px; line-height:1.6; }
+    .confirm-actions { display:flex; gap:8px; justify-content:flex-end; }
+
+    /* OVERLAY MOBILE */
+    #overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:99; }
+    #overlay.open { display:block; }
+
+    /* TOAST */
+    #toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--surface); border:1px solid var(--border2); color:var(--text); padding:10px 20px; border-radius:var(--r); font-size:13px; transition:transform .25s ease; z-index:999; white-space:nowrap; pointer-events:none; }
+
+    /* RESPONSIVE */
+    @media(max-width:768px){
+      #sidebar { position:fixed; top:0; left:0; bottom:0; transform:translateX(-100%); }
+      #sidebar.open { transform:translateX(0); }
+      #overlay.open { display:block; }
+      #menu-toggle { display:flex; }
+      #content { padding:16px; }
+      .form-row-2, .form-row-3 { grid-template-columns:1fr; }
+      .ph { flex-direction:column; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="overlay"></div>
+
+<div id="app">
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="s-logo">
+      <div class="s-logo-eco">Mayor Tools</div>
+      <div class="s-logo-name">Pack<span>Flow</span></div>
+    </div>
+    <div class="s-nav">
+      <div class="s-label">Principal</div>
+      <div class="nav-item" data-page="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" data-page="produccion">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+        Planificación
+      </div>
+      <div class="nav-item" data-page="inventario">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
+        Inventario
+      </div>
+      <div class="nav-item" data-page="pedidos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        Pedidos
+      </div>
+      <div class="nav-item" data-page="consumo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Consumo
+      </div>
+      <div class="s-label">Configuración</div>
+      <div class="nav-item" data-page="referencias">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        Referencias
+      </div>
+      <div class="nav-item active" data-page="cajas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+        Tipos de caja
+      </div>
+      <div class="nav-item" data-page="pales">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="14" width="20" height="3" rx="1"/><rect x="5" y="10" width="14" height="4"/><path d="M6 17v3M18 17v3"/></svg>
+        Tipos de palé
+      </div>
+      <div class="nav-item" data-page="auxiliares">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        Mat. auxiliares
+      </div>
+    </div>
+    <div class="s-footer"><span>Cerámica Mayor</span> · Clasificación</div>
+  </nav>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="topbar">
+      <button id="menu-toggle" aria-label="Menú">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+      <span class="tb-title" id="topbar-title">Tipos de caja</span>
+      <div class="tb-right">
+        <span class="tb-date" id="topbar-date"></span>
+        <div class="status-dot" id="status-dot-el"></div>
+      </div>
+    </div>
+
+    <div id="content">
+
+      <!-- DASHBOARD -->
+      <div class="page" id="page-dashboard">
+        <div class="ph"><div class="ph-left"><div class="ph-title">Dashboard</div><div class="ph-sub">Estado general de producción y embalaje</div></div></div>
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-label">Producciones activas</div><div class="stat-value accent" id="dash-activas">—</div><div class="stat-sub">En curso hoy</div></div>
+          <div class="stat-card"><div class="stat-label">Cajas en stock</div><div class="stat-value" id="dash-cajas">—</div><div class="stat-sub">Total disponible</div></div>
+          <div class="stat-card"><div class="stat-label">Palés en stock</div><div class="stat-value" id="dash-pales">—</div><div class="stat-sub">Total disponible</div></div>
+          <div class="stat-card"><div class="stat-label">Alertas de material</div><div class="stat-value success" id="dash-deficit">—</div><div class="stat-sub">Vs. planificación total</div></div>
+        </div>
+        <div id="dash-body"></div>
+      </div>
+
+      <!-- PLANIFICACIÓN -->
+      <div class="page" id="page-produccion">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="ph-title">Planificación</div>
+            <div class="ph-sub">Órdenes de producción · diagrama de Gantt</div>
+          </div>
+          <button class="btn btn-primary" onclick="openOrdenModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nueva orden
+          </button>
+        </div>
+
+        <!-- Controles de rango -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="shiftGantt(-1)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="ganttToday()">Hoy</button>
+            <button class="btn btn-ghost btn-sm" onclick="shiftGantt(1)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+          <span style="font-size:13px;color:var(--text2);" id="gantt-range-label"></span>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:12px;color:var(--text2);">Semanas:</span>
+            <select class="form-select" id="gantt-weeks" onchange="renderGantt()" style="width:80px;padding:6px 10px;">
+              <option value="2">2</option>
+              <option value="4" selected>4</option>
+              <option value="6">6</option>
+              <option value="8">8</option>
+              <option value="12">12</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Gantt -->
+        <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;">
+          <div id="gantt-wrap" style="overflow-x:auto;">
+            <div id="gantt-inner"></div>
+          </div>
+        </div>
+
+        <!-- Resumen de necesidades -->
+        <div id="plan-resumen" style="margin-top:20px;"></div>
+
+        <div class="empty-state" id="plan-empty" style="display:none;margin-top:20px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+          <div class="empty-state-title">Sin órdenes de producción</div>
+          <div class="empty-state-sub">Añade una orden para empezar a planificar y calcular necesidades de embalaje.</div>
+        </div>
+      </div>
+
+      <!-- INVENTARIO -->
+      <div class="page" id="page-inventario">
+
+        <!-- DESKTOP VIEW -->
+        <div id="inv-desktop">
+          <div class="ph">
+            <div class="ph-left">
+              <div class="ph-title">Inventario</div>
+              <div class="ph-sub">Stock actual de material de embalaje</div>
+            </div>
+            <button class="btn btn-primary" onclick="openInvModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              Nuevo conteo
+            </button>
+          </div>
+          <div class="section-tabs">
+            <div class="section-tab active" data-inv-tab="todos" onclick="setInvTab('todos')">Todos</div>
+            <div class="section-tab" data-inv-tab="cajas" onclick="setInvTab('cajas')">Cajas</div>
+            <div class="section-tab" data-inv-tab="pales" onclick="setInvTab('pales')">Palés</div>
+            <div class="section-tab" data-inv-tab="aux" onclick="setInvTab('aux')">Auxiliares</div>
+          </div>
+          <div id="inv-content"></div>
+          <div class="empty-state" id="inv-empty" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
+            <div class="empty-state-title">Sin conteos registrados</div>
+            <div class="empty-state-sub">Registra un conteo para ver el stock disponible.</div>
+          </div>
+        </div>
+
+        <!-- MOBILE VIEW -->
+        <div id="inv-mobile" style="display:none;">
+
+          <!-- Paso 1: selección de categoría -->
+          <div id="mob-step-cat">
+            <div style="padding:8px 0 24px;">
+              <div style="font-size:20px;font-weight:600;color:var(--text);">¿Qué vas a contar?</div>
+              <div style="font-size:14px;color:var(--text2);margin-top:4px;">Selecciona la categoría</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <button class="mob-cat-btn" onclick="mobSelectCat('pale')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="32" height="32"><rect x="2" y="14" width="20" height="3" rx="1"/><rect x="5" y="10" width="14" height="4"/><path d="M6 17v3M18 17v3"/></svg>
+                <div>
+                  <div class="mob-cat-label">Palés</div>
+                  <div class="mob-cat-sub" id="mob-count-pale"></div>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="margin-left:auto;opacity:.4;"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+              <button class="mob-cat-btn" onclick="mobSelectCat('caja')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="32" height="32"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                <div>
+                  <div class="mob-cat-label">Cajas</div>
+                  <div class="mob-cat-sub" id="mob-count-caja"></div>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="margin-left:auto;opacity:.4;"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+              <button class="mob-cat-btn" onclick="mobSelectCat('aux')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="32" height="32"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                <div>
+                  <div class="mob-cat-label">Material auxiliar</div>
+                  <div class="mob-cat-sub" id="mob-count-aux"></div>
+                </div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="margin-left:auto;opacity:.4;"><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Paso 2: lista de materiales -->
+          <div id="mob-step-list" style="display:none;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+              <button class="mob-back-btn" onclick="mobBack('cat')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <div>
+                <div style="font-size:18px;font-weight:600;color:var(--text);" id="mob-list-title"></div>
+                <div style="font-size:13px;color:var(--text2);">Toca para actualizar el conteo</div>
+              </div>
+            </div>
+            <!-- Buscador -->
+            <div style="position:relative;margin-bottom:16px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);pointer-events:none;"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input type="text" class="form-input" id="mob-search" placeholder="Buscar..." oninput="mobFilterList()" style="padding-left:36px;font-size:15px;padding-top:11px;padding-bottom:11px;" />
+            </div>
+            <div id="mob-list-items"></div>
+          </div>
+
+          <!-- Paso 3: conteo individual -->
+          <div id="mob-step-count" style="display:none;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:28px;">
+              <button class="mob-back-btn" onclick="mobBack('list')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <div style="font-size:16px;font-weight:600;color:var(--text);" id="mob-count-name"></div>
+            </div>
+
+            <div style="text-align:center;margin-bottom:32px;">
+              <div style="font-size:13px;color:var(--text2);margin-bottom:8px;">Stock anterior</div>
+              <div style="font-size:28px;font-weight:600;color:var(--text3);" id="mob-prev-stock">—</div>
+              <div style="font-size:12px;color:var(--text3);" id="mob-prev-date"></div>
+            </div>
+
+            <div style="text-align:center;margin-bottom:32px;">
+              <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Cantidad actual</div>
+              <input type="number"
+                id="mob-qty-input"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                min="0"
+                style="
+                  width:100%;
+                  background:var(--surface2);
+                  border:2px solid var(--accent);
+                  border-radius:12px;
+                  color:var(--text);
+                  font-size:42px;
+                  font-weight:700;
+                  text-align:center;
+                  padding:20px;
+                  font-family:var(--font);
+                  outline:none;
+                "
+                placeholder="0"
+              />
+              <div style="font-size:13px;color:var(--text2);margin-top:8px;" id="mob-qty-unit"></div>
+            </div>
+
+            <button onclick="mobSaveCount()" style="
+              width:100%;
+              background:var(--accent);
+              color:#0F1117;
+              border:none;
+              border-radius:12px;
+              font-size:18px;
+              font-weight:700;
+              padding:18px;
+              cursor:pointer;
+              font-family:var(--font);
+              transition:background .15s;
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              gap:10px;
+            ">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="22" height="22"><polyline points="20 6 9 17 4 12"/></svg>
+              Guardar conteo
+            </button>
+
+            <!-- Feedback guardado -->
+            <div id="mob-saved-feedback" style="display:none;text-align:center;margin-top:20px;">
+              <div style="font-size:36px;">✓</div>
+              <div style="font-size:16px;font-weight:600;color:var(--success);margin-top:4px;">Guardado</div>
+            </div>
+          </div>
+
+        </div><!-- /inv-mobile -->
+      </div>
+
+      <!-- PEDIDOS -->
+      <div class="page" id="page-pedidos">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="ph-title">Pedidos</div>
+            <div class="ph-sub">Gestión de pedidos a compras y recepciones de material</div>
+          </div>
+          <button class="btn btn-primary" onclick="openPedidoModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo pedido
+          </button>
+        </div>
+
+        <!-- Filtro estado -->
+        <div class="section-tabs">
+          <div class="section-tab active" data-ped-tab="activos" onclick="setPedTab('activos')">Activos</div>
+          <div class="section-tab" data-ped-tab="todos" onclick="setPedTab('todos')">Todos</div>
+          <div class="section-tab" data-ped-tab="cerrados" onclick="setPedTab('cerrados')">Cerrados</div>
+        </div>
+
+        <div id="ped-content"></div>
+        <div class="empty-state" id="ped-empty" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+          <div class="empty-state-title">Sin pedidos</div>
+          <div class="empty-state-sub">Crea un pedido para enviar a compras y hacer seguimiento de las recepciones.</div>
+        </div>
+      </div>
+
+      <!-- CONSUMO -->
+      <div class="page" id="page-consumo">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="ph-title">Consumo</div>
+            <div class="ph-sub">Registro de palés terminados · descuento automático de stock</div>
+          </div>
+          <button class="btn btn-primary" onclick="openConsumoModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Registrar salida
+          </button>
+        </div>
+
+        <!-- Historial -->
+        <div class="table-wrap" id="consumo-table-wrap">
+          <table>
+            <thead><tr>
+              <th>Fecha</th>
+              <th>Referencia</th>
+              <th>Palés salidos</th>
+              <th>Material descontado</th>
+            </tr></thead>
+            <tbody id="consumo-tbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="consumo-empty" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <div class="empty-state-title">Sin registros de consumo</div>
+          <div class="empty-state-sub">Cuando salga material terminado, regístralo aquí para actualizar el stock automáticamente.</div>
+        </div>
+      </div>
+
+      <!-- REFERENCIAS -->
+      <div class="page" id="page-referencias">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="ph-title">Referencias</div>
+            <div class="ph-sub">Catálogo de productos y receta de embalaje por palé</div>
+          </div>
+          <button class="btn btn-primary" onclick="openRefModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nueva referencia
+          </button>
+        </div>
+        <div class="table-wrap" id="ref-table-wrap">
+          <table>
+            <thead><tr>
+              <th>Referencia</th>
+              <th>Palé</th>
+              <th>Caja</th>
+              <th>Prod. diaria</th>
+              <th>Receta</th>
+              <th style="width:110px"></th>
+            </tr></thead>
+            <tbody id="ref-tbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="ref-empty" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          <div class="empty-state-title">Sin referencias</div>
+          <div class="empty-state-sub">Añade las referencias de producto con su receta de embalaje por palé.</div>
+        </div>
+      </div>
+
+      <!-- TIPOS DE CAJA -->
+      <div class="page active" id="page-cajas">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="ph-title">Tipos de caja</div>
+            <div class="ph-sub">Artículos de embalaje con sus fabricantes</div>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('caja')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nueva caja
+          </button>
+        </div>
+        <div class="table-wrap" id="cajas-table-wrap">
+          <table id="cajas-table">
+            <thead><tr>
+              <th>Nombre</th>
+              <th>Fabricantes</th>
+              <th style="width:100px"></th>
+            </tr></thead>
+            <tbody id="cajas-tbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="cajas-empty" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          <div class="empty-state-title">Sin tipos de caja</div>
+          <div class="empty-state-sub">Añade los tipos de caja que utilizáis con sus fabricantes.</div>
+        </div>
+      </div>
+
+      <!-- TIPOS DE PALÉ -->
+      <div class="page" id="page-pales">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="ph-title">Tipos de palé</div>
+            <div class="ph-sub">Europalé y palés especiales por dimensiones</div>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('pale')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo palé
+          </button>
+        </div>
+        <div class="table-wrap" id="pales-table-wrap">
+          <table id="pales-table">
+            <thead><tr>
+              <th>Nombre</th>
+              <th>Dimensiones</th>
+              <th style="width:100px"></th>
+            </tr></thead>
+            <tbody id="pales-tbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="pales-empty" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="14" width="20" height="3" rx="1"/><rect x="5" y="10" width="14" height="4"/><path d="M6 17v3M18 17v3"/></svg>
+          <div class="empty-state-title">Sin tipos de palé</div>
+          <div class="empty-state-sub">Añade los tipos de palé con sus dimensiones (europalé y especiales).</div>
+        </div>
+      </div>
+
+      <!-- MATERIALES AUXILIARES -->
+      <div class="page" id="page-auxiliares">
+        <div class="ph">
+          <div class="ph-left">
+            <div class="ph-title">Materiales auxiliares</div>
+            <div class="ph-sub">Otros materiales necesarios en la producción</div>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('aux')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo material
+          </button>
+        </div>
+        <div class="table-wrap" id="aux-table-wrap">
+          <table id="aux-table">
+            <thead><tr>
+              <th>Nombre</th>
+              <th>Unidad</th>
+              <th>Fabricantes</th>
+              <th style="width:100px"></th>
+            </tr></thead>
+            <tbody id="aux-tbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="aux-empty" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          <div class="empty-state-title">Sin materiales auxiliares</div>
+          <div class="empty-state-sub">Añade materiales como corcho, laterales, maderas, etc.</div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- MODAL CAJA -->
+<div class="modal-backdrop" id="modal-caja">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-caja-title">Nueva caja</span>
+      <button class="modal-close" onclick="closeModal('caja')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="caja-edit-id" />
+      <div class="form-group">
+        <label class="form-label">Nombre <span class="req">*</span></label>
+        <input type="text" class="form-input" id="caja-nombre" placeholder="Ej: Caja peldaño 33x33" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Artículo (interno)</label>
+        <input type="text" class="form-input" id="caja-articulo" placeholder="Nº de artículo para compras" />
+        <div class="form-hint">Solo visible en informes de pedido, no en la interfaz diaria.</div>
+      </div>
+      <div class="form-divider"></div>
+      <div class="form-group">
+        <label class="form-label">Fabricantes</label>
+        <div class="fab-add-row">
+          <input type="text" class="form-input" id="caja-fab-input" placeholder="Nombre del fabricante" onkeydown="if(event.key==='Enter'){event.preventDefault();addFabricante('caja');}" />
+          <button class="btn btn-secondary" onclick="addFabricante('caja')">Añadir</button>
+        </div>
+        <div class="fab-list" id="caja-fab-list"></div>
+        <div class="form-hint">Pulsa Enter o el botón para añadir cada fabricante.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('caja')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCaja()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PALÉ -->
+<div class="modal-backdrop" id="modal-pale">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-pale-title">Nuevo palé</span>
+      <button class="modal-close" onclick="closeModal('pale')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="pale-edit-id" />
+      <div class="form-group">
+        <label class="form-label">Nombre <span class="req">*</span></label>
+        <input type="text" class="form-input" id="pale-nombre" placeholder="Ej: Europalé, Palé 1100x1250..." />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Artículo (interno)</label>
+        <input type="text" class="form-input" id="pale-articulo" placeholder="Nº de artículo para compras" />
+        <div class="form-hint">Solo visible en informes de pedido.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Dimensiones</label>
+        <div class="form-row form-row-2">
+          <div>
+            <input type="number" class="form-input" id="pale-ancho" placeholder="Ancho (cm)" min="1" />
+          </div>
+          <div>
+            <input type="number" class="form-input" id="pale-largo" placeholder="Largo (cm)" min="1" />
+          </div>
+        </div>
+        <div class="form-hint">Dimensiones de la base en centímetros.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('pale')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePale()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AUXILIAR -->
+<div class="modal-backdrop" id="modal-aux">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-aux-title">Nuevo material auxiliar</span>
+      <button class="modal-close" onclick="closeModal('aux')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="aux-edit-id" />
+      <div class="form-group">
+        <label class="form-label">Nombre <span class="req">*</span></label>
+        <input type="text" class="form-input" id="aux-nombre" placeholder="Ej: Plancha de corcho, Lateral, Madera 45°..." />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Artículo (interno)</label>
+        <input type="text" class="form-input" id="aux-articulo" placeholder="Nº de artículo para compras" />
+        <div class="form-hint">Solo visible en informes de pedido.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unidad de medida <span class="req">*</span></label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select class="form-select" id="aux-unidad" style="flex:1">
+            <option value="">Selecciona o escribe...</option>
+            <option value="ud">ud (unidades)</option>
+            <option value="plancha">plancha</option>
+            <option value="pieza">pieza</option>
+            <option value="rollo">rollo</option>
+            <option value="kg">kg</option>
+            <option value="m">m (metros)</option>
+            <option value="m²">m²</option>
+            <option value="otro">otro</option>
+          </select>
+          <input type="text" class="form-input" id="aux-unidad-custom" placeholder="Unidad personalizada" style="flex:1;display:none;" />
+        </div>
+      </div>
+      <div class="form-divider"></div>
+      <div class="form-group">
+        <label class="form-label">Fabricantes</label>
+        <div class="fab-add-row">
+          <input type="text" class="form-input" id="aux-fab-input" placeholder="Nombre del fabricante" onkeydown="if(event.key==='Enter'){event.preventDefault();addFabricante('aux');}" />
+          <button class="btn btn-secondary" onclick="addFabricante('aux')">Añadir</button>
+        </div>
+        <div class="fab-list" id="aux-fab-list"></div>
+        <div class="form-hint">Pulsa Enter o el botón para añadir cada fabricante.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('aux')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAux()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM -->
+<div class="confirm-backdrop" id="confirm-dialog">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirm-title">Eliminar elemento</div>
+    <div class="confirm-msg" id="confirm-msg">¿Seguro que quieres eliminar este elemento? Esta acción no se puede deshacer.</div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn btn-danger" id="confirm-ok">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONSUMO -->
+<div class="modal-backdrop" id="modal-consumo">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <span class="modal-title">Registrar salida de material</span>
+      <button class="modal-close" onclick="closeConsumoModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Referencia <span class="req">*</span></label>
+        <select class="form-select" id="con-ref" onchange="onConRefChange()">
+          <option value="">Selecciona referencia...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Palés terminados que salen <span class="req">*</span></label>
+        <input type="number" class="form-input" id="con-pales" placeholder="Nº de palés" min="1" style="font-size:18px;padding:12px;" oninput="calcConsumo()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fecha</label>
+        <input type="date" class="form-input" id="con-fecha" />
+      </div>
+      <!-- Resumen de lo que se va a descontar -->
+      <div id="con-calc" style="display:none;background:var(--surface2);border-radius:var(--r);padding:14px;margin-top:4px;">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:500;margin-bottom:8px;">Se descontará del stock</div>
+        <div id="con-calc-text" style="font-size:13px;color:var(--text2);line-height:2;"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeConsumoModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveConsumo()">Registrar salida</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVO PEDIDO -->
+<div class="modal-backdrop" id="modal-pedido">
+  <div class="modal" style="max-width:580px;">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-pedido-title">Nuevo pedido</span>
+      <button class="modal-close" onclick="closePedidoModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Tipo de material <span class="req">*</span></label>
+          <select class="form-select" id="ped-tipo" onchange="onPedTipoChange()">
+            <option value="">Selecciona...</option>
+            <option value="caja">Cajas</option>
+            <option value="pale">Palés</option>
+            <option value="aux">Material auxiliar</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fecha estimada de llegada</label>
+          <input type="date" class="form-input" id="ped-fecha-est" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observaciones</label>
+        <textarea class="form-textarea" id="ped-obs" rows="2" placeholder="Notas para compras..."></textarea>
+      </div>
+      <div class="form-divider"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);">Líneas del pedido</div>
+        <button class="btn btn-ghost btn-sm" id="ped-suggest-btn" style="display:none" onclick="suggestLineas()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/><path d="M18 2v4M20 4h-4"/></svg>
+          Sugerir por déficit
+        </button>
+      </div>
+      <div id="ped-lineas"></div>
+      <button class="btn btn-ghost btn-sm" id="ped-add-linea-btn" style="display:none;margin-top:8px;" onclick="addPedLinea()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><path d="M12 5v14M5 12h14"/></svg>
+        Añadir línea
+      </button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePedidoModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePedido()">Crear pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RECEPCIÓN -->
+<div class="modal-backdrop" id="modal-recepcion">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-rec-title">Recepción de material</span>
+      <button class="modal-close" onclick="closeRecepcionModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="rec-pedido-id" />
+      <div class="form-group">
+        <label class="form-label">Proveedor / Fabricante</label>
+        <input type="text" class="form-input" id="rec-proveedor" placeholder="Nombre del proveedor" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fecha de recepción</label>
+        <input type="date" class="form-input" id="rec-fecha" />
+      </div>
+      <div class="form-divider"></div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;">Material recibido</div>
+      <div id="rec-lineas"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeRecepcionModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRecepcion()">Registrar recepción</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ORDEN DE PRODUCCIÓN -->
+<div class="modal-backdrop" id="modal-orden">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-orden-title">Nueva orden de producción</span>
+      <button class="modal-close" onclick="closeOrdenModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="orden-edit-id" />
+      <div class="form-group">
+        <label class="form-label">Referencia <span class="req">*</span></label>
+        <select class="form-select" id="orden-ref" onchange="onOrdenRefChange()">
+          <option value="">Selecciona referencia...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cantidad total a producir (piezas) <span class="req">*</span></label>
+        <input type="number" class="form-input" id="orden-cantidad" placeholder="Ej: 12000" min="1" oninput="calcOrdenFin()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fecha de inicio <span class="req">*</span></label>
+        <input type="date" class="form-input" id="orden-inicio" oninput="calcOrdenFin()" />
+      </div>
+      <!-- Info calculada -->
+      <div id="orden-calc" style="display:none;background:var(--surface2);border-radius:var(--r);padding:12px 14px;font-size:12px;color:var(--text2);line-height:1.8;margin-top:4px;">
+        <div id="orden-calc-text"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeOrdenModal()">Cancelar</button>
+      <button class="btn btn-danger btn-sm" id="orden-delete-btn" style="display:none;margin-right:auto;" onclick="deleteOrdenFromModal()">Eliminar orden</button>
+      <button class="btn btn-primary" onclick="saveOrden()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL INVENTARIO -->
+<div class="modal-backdrop" id="modal-inv">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <span class="modal-title">Nuevo conteo</span>
+      <button class="modal-close" onclick="closeInvModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Tipo de material <span class="req">*</span></label>
+        <select class="form-select" id="inv-tipo" onchange="onInvTipoChange()">
+          <option value="">Selecciona tipo...</option>
+          <option value="caja">Caja</option>
+          <option value="pale">Palé</option>
+          <option value="aux">Material auxiliar</option>
+        </select>
+      </div>
+      <div class="form-group" id="inv-material-group" style="display:none">
+        <label class="form-label">Material <span class="req">*</span></label>
+        <select class="form-select" id="inv-material">
+          <option value="">Selecciona...</option>
+        </select>
+      </div>
+      <div class="form-group" id="inv-cantidad-group" style="display:none">
+        <label class="form-label">Cantidad actual <span class="req">*</span></label>
+        <input type="number" class="form-input" id="inv-cantidad" placeholder="Unidades en stock ahora mismo" min="0" style="font-size:18px;padding:12px;" />
+        <div class="form-hint" id="inv-cantidad-hint"></div>
+      </div>
+      <div class="form-group" id="inv-fecha-group" style="display:none">
+        <label class="form-label">Fecha del conteo</label>
+        <input type="datetime-local" class="form-input" id="inv-fecha" />
+        <div class="form-hint">Por defecto usa la fecha y hora actuales.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeInvModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveConteo()">Guardar conteo</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REFERENCIA -->
+<div class="modal-backdrop" id="modal-ref">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-ref-title">Nueva referencia</span>
+      <button class="modal-close" onclick="closeRefModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ref-edit-id" />
+
+      <!-- Datos básicos -->
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Nombre <span class="req">*</span></label>
+          <input type="text" class="form-input" id="ref-nombre" placeholder="Ej: Peldaño 33x33, Rodapié 8cm..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Artículo (interno)</label>
+          <input type="text" class="form-input" id="ref-articulo" placeholder="Nº de artículo" />
+        </div>
+      </div>
+
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Producción diaria (piezas/día) <span class="req">*</span></label>
+          <input type="number" class="form-input" id="ref-proddia" placeholder="Ej: 1200" min="1" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">¿Lleva caja?</label>
+          <select class="form-select" id="ref-lleva-caja" onchange="toggleCajaField()">
+            <option value="si">Sí</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-divider"></div>
+
+      <!-- Receta por palé -->
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;">
+        Receta por palé
+        <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:6px;">Materiales necesarios para completar 1 palé de producto</span>
+      </div>
+
+      <!-- Palé de producto -->
+      <div class="form-group">
+        <label class="form-label">Tipo de palé <span class="req">*</span></label>
+        <select class="form-select" id="ref-pale">
+          <option value="">Selecciona un tipo de palé...</option>
+        </select>
+      </div>
+
+      <!-- Caja (condicional) -->
+      <div id="ref-caja-section" class="form-group">
+        <label class="form-label">Tipo de caja <span class="req">*</span></label>
+        <div class="form-row form-row-2">
+          <select class="form-select" id="ref-caja">
+            <option value="">Selecciona un tipo de caja...</option>
+          </select>
+          <div>
+            <input type="number" class="form-input" id="ref-cajas-pale" placeholder="Cajas por palé" min="1" />
+            <div class="form-hint">Nº de cajas que caben en 1 palé de producto</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Auxiliares -->
+      <div class="form-group">
+        <label class="form-label">Materiales auxiliares</label>
+        <div id="ref-aux-lines"></div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="addAuxLine()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><path d="M12 5v14M5 12h14"/></svg>
+          Añadir material auxiliar
+        </button>
+        <div class="form-hint" style="margin-top:6px;">Cantidad de cada material necesaria para 1 palé de producto.</div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeRefModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRef()">Guardar referencia</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* MOBILE INVENTORY */
+  .mob-cat-btn {
+    width:100%; background:var(--sidebar); border:1px solid var(--border);
+    border-radius:var(--rl); padding:20px; display:flex; align-items:center;
+    gap:16px; cursor:pointer; transition:all .15s; color:var(--text);
+    font-family:var(--font); text-align:left;
+  }
+  .mob-cat-btn:hover, .mob-cat-btn:active { background:var(--surface2); border-color:var(--accent); }
+  .mob-cat-btn svg { flex-shrink:0; color:var(--accent); }
+  .mob-cat-label { font-size:18px; font-weight:600; color:var(--text); }
+  .mob-cat-sub { font-size:13px; color:var(--text2); margin-top:2px; }
+  .mob-back-btn {
+    background:var(--surface2); border:1px solid var(--border); border-radius:var(--r);
+    width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; flex-shrink:0; color:var(--text2);
+  }
+  .mob-back-btn:hover { color:var(--text); background:var(--border2); }
+  .mob-material-item {
+    background:var(--sidebar); border:1px solid var(--border); border-radius:var(--rl);
+    padding:18px 20px; display:flex; align-items:center; justify-content:space-between;
+    cursor:pointer; margin-bottom:10px; transition:all .15s;
+  }
+  .mob-material-item:hover, .mob-material-item:active { border-color:var(--accent); background:var(--surface2); }
+  .mob-material-name { font-size:16px; font-weight:500; color:var(--text); }
+  .mob-material-stock { font-size:22px; font-weight:700; color:var(--accent); }
+  .mob-material-unit { font-size:12px; color:var(--text2); text-align:right; }
+  .mob-material-date { font-size:11px; color:var(--text3); margin-top:2px; }
+
+  /* PEDIDOS */
+  .ped-card { background:var(--sidebar); border:1px solid var(--border); border-radius:var(--rl); margin-bottom:12px; overflow:hidden; }
+  .ped-card-head { padding:14px 18px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border); }
+  .ped-num { font-size:12px; font-weight:600; color:var(--accent); font-family:monospace; }
+  .ped-fecha { font-size:11px; color:var(--text3); }
+  .ped-obs-text { font-size:12px; color:var(--text2); font-style:italic; }
+  .ped-actions { margin-left:auto; display:flex; gap:6px; }
+  .ped-table { width:100%; border-collapse:collapse; }
+  .ped-table th { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.07em; padding:8px 18px; text-align:left; background:var(--surface2); border-bottom:1px solid var(--border); }
+  .ped-table td { padding:9px 18px; font-size:12px; color:var(--text); border-bottom:1px solid var(--border); }
+  .ped-table tr:last-child td { border-bottom:none; }
+  .ped-foot { padding:10px 18px; display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); background:var(--surface2); }
+  .ped-foot-label { font-size:11px; color:var(--text3); }
+  /* Lineas modal */
+  .ped-linea { display:grid; grid-template-columns:1fr 120px 32px; gap:8px; align-items:center; margin-bottom:8px; }
+  .ped-linea-check { display:grid; grid-template-columns:20px 1fr 120px 120px; gap:8px; align-items:center; margin-bottom:10px; }
+  /* PDF preview (hidden, used for print) */
+  @media print {
+    body > *:not(#pdf-frame) { display:none !important; }
+    #pdf-frame { display:block !important; position:fixed; inset:0; background:#fff; z-index:9999; padding:40px; }
+  }
+
+  /* GANTT */
+  .gantt-header { display:flex; }
+  .gantt-label-col { width:180px; flex-shrink:0; background:var(--surface2); border-right:1px solid var(--border); }
+  .gantt-label-header { height:62px; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 14px; font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.08em; font-weight:500; }
+  .gantt-label-row { height:44px; border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 14px; gap:8px; }
+  .gantt-label-row:last-child { border-bottom:none; }
+  .gantt-ref-name { font-size:12px; font-weight:500; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px; }
+  .gantt-ref-sub { font-size:10px; color:var(--text3); }
+  .gantt-timeline { flex:1; overflow:hidden; }
+  .gantt-days-header { display:flex; flex-direction:column; border-bottom:1px solid var(--border); }
+  .gantt-months-row { display:flex; height:24px; border-bottom:1px solid var(--border); }
+  .gantt-month-label { font-size:11px; color:var(--text2); font-weight:500; padding:0 8px; display:flex; align-items:center; border-right:1px solid var(--border); white-space:nowrap; }
+  .gantt-days-row { display:flex; height:38px; }
+  .gantt-day-cell { flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; }
+  .gantt-day-cell.today { background:rgba(88,166,255,.1); }
+  .gantt-day-cell.weekend { background:rgba(255,255,255,.025); }
+  .gantt-day-cell .day-dow { font-size:9px; color:var(--text3); text-transform:uppercase; line-height:1; }
+  .gantt-day-cell .day-num { font-size:12px; font-weight:500; color:var(--text2); line-height:1; }
+  .gantt-day-cell.today .day-num { color:var(--accent); font-weight:700; }
+  .gantt-day-cell.today .day-dow { color:var(--accent); }
+  .gantt-row { height:44px; border-bottom:1px solid var(--border); position:relative; display:flex; align-items:center; }
+  .gantt-row:last-child { border-bottom:none; }
+  .gantt-row-bg { position:absolute; inset:0; display:flex; }
+  .gantt-row-day { flex-shrink:0; height:100%; border-right:1px solid rgba(255,255,255,.03); }
+  .gantt-row-day.today { background:rgba(88,166,255,.06); }
+  .gantt-row-day.weekend { background:rgba(255,255,255,.015); }
+  .gantt-bar { position:absolute; height:26px; border-radius:4px; display:flex; align-items:center; padding:0 8px; font-size:11px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; transition:filter .15s; top:50%; transform:translateY(-50%); }
+  .gantt-bar:hover { filter:brightness(1.15); }
+  .gantt-today-line { position:absolute; top:0; bottom:0; width:1px; background:var(--accent); opacity:.6; pointer-events:none; z-index:2; }
+  /* Resumen necesidades */
+  .nec-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
+  .nec-card { background:var(--sidebar); border:1px solid var(--border); border-radius:var(--rl); padding:14px 16px; }
+  .nec-card.deficit { border-color:rgba(240,136,62,.4); }
+  .nec-label { font-size:11px; color:var(--text2); margin-bottom:4px; }
+  .nec-name { font-size:13px; font-weight:500; color:var(--text); margin-bottom:8px; }
+  .nec-row { display:flex; justify-content:space-between; font-size:12px; color:var(--text2); margin-bottom:3px; }
+  .nec-val { font-weight:500; color:var(--text); }
+  .nec-val.ok { color:var(--success); }
+  .nec-val.deficit { color:var(--alert); }
+
+  /* Receta aux lines */
+  .aux-line { display:grid; grid-template-columns:1fr 120px 32px; gap:8px; align-items:center; margin-bottom:8px; }
+  .aux-line-remove { background:none; border:none; color:var(--text3); cursor:pointer; padding:4px; border-radius:var(--r); display:flex; align-items:center; justify-content:center; }
+  .aux-line-remove:hover { color:#F85149; background:rgba(248,81,73,.1); }
+  /* Receta pills en tabla */
+  .receta-pills { display:flex; flex-wrap:wrap; gap:4px; }
+  .receta-pill { font-size:11px; background:var(--surface2); color:var(--text2); padding:2px 8px; border-radius:99px; white-space:nowrap; }
+</style>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ─────────────────────────────────────────
+// SUPABASE
+// ─────────────────────────────────────────
+const SUPA_URL = 'https://ymbwkudgvxygcwlslmcz.supabase.co';
+const SUPA_KEY = 'sb_publishable_oTSITUZ2DpEOmmlUJ6aNtg_NGHEfFSp';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// Cache local para rendimiento
+const _cache = {};
+
+async function dbGet(table){
+  if(_cache[table]) return _cache[table];
+  const {data,error} = await supa.from(table).select('*').order('created_at',{ascending:true});
+  if(error){ console.error('dbGet',table,error); return []; }
+  _cache[table] = data.map(r=>fromDb(table,r));
+  return _cache[table];
+}
+
+async function dbInsert(table, row){
+  const dbRow = toDb(table, row);
+  const {data,error} = await supa.from(table).insert(dbRow).select().single();
+  if(error){ console.error('dbInsert',table,error); showToast('Error al guardar','error'); return null; }
+  delete _cache[table];
+  return fromDb(table, data);
+}
+
+async function dbUpdate(table, id, row){
+  const dbRow = toDb(table, row);
+  const {data,error} = await supa.from(table).update(dbRow).eq('id',id).select().single();
+  if(error){ console.error('dbUpdate',table,error); showToast('Error al actualizar','error'); return null; }
+  delete _cache[table];
+  return fromDb(table, data);
+}
+
+async function dbDelete(table, id){
+  const {error} = await supa.from(table).delete().eq('id',id);
+  if(error){ console.error('dbDelete',table,error); showToast('Error al eliminar','error'); return false; }
+  delete _cache[table];
+  return true;
+}
+
+function uid(){ return crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
+// Mapeo camelCase JS ↔ snake_case Supabase
+function toDb(table, r){
+  if(!r) return r;
+  const m = {...r};
+  if(table==='refs'){
+    if('llevaCaja'  in m){ m.lleva_caja  = m.llevaCaja;  delete m.llevaCaja; }
+    if('paleId'     in m){ m.pale_id     = m.paleId;     delete m.paleId; }
+    if('cajaId'     in m){ m.caja_id     = m.cajaId;     delete m.cajaId; }
+    if('cajasPale'  in m){ m.cajas_pale  = m.cajasPale;  delete m.cajasPale; }
+  }
+  if(table==='ordenes'){
+    if('refId' in m){ m.ref_id = m.refId; delete m.refId; }
+  }
+  if(table==='conteos'){
+    if('materialId' in m){ m.material_id = m.materialId; delete m.materialId; }
+    if('esEntrada'  in m){ m.es_entrada  = m.esEntrada;  delete m.esEntrada; }
+    if('esConsumo'  in m){ m.es_consumo  = m.esConsumo;  delete m.esConsumo; }
+  }
+  if(table==='pedidos'){
+    if('fechaEst' in m){ m.fecha_est = m.fechaEst||null; delete m.fechaEst; }
+  }
+  if(table==='consumos'){
+    if('refId'     in m){ m.ref_id     = m.refId;     delete m.refId; }
+    if('refNombre' in m){ m.ref_nombre = m.refNombre; delete m.refNombre; }
+    if('numPales'  in m){ m.num_pales  = m.numPales;  delete m.numPales; }
+  }
+  delete m.created_at;
+  return m;
+}
+
+function fromDb(table, r){
+  if(!r) return r;
+  const m = {...r};
+  if(table==='refs'){
+    m.llevaCaja = m.lleva_caja;  delete m.lleva_caja;
+    m.paleId    = m.pale_id;     delete m.pale_id;
+    m.cajaId    = m.caja_id;     delete m.caja_id;
+    m.cajasPale = m.cajas_pale;  delete m.cajas_pale;
+  }
+  if(table==='ordenes'){
+    m.refId = m.ref_id; delete m.ref_id;
+  }
+  if(table==='conteos'){
+    m.materialId = m.material_id; delete m.material_id;
+    m.esEntrada  = m.es_entrada;  delete m.es_entrada;
+    m.esConsumo  = m.es_consumo;  delete m.es_consumo;
+  }
+  if(table==='pedidos'){
+    m.fechaEst = m.fecha_est; delete m.fecha_est;
+  }
+  if(table==='consumos'){
+    m.refId     = m.ref_id;     delete m.ref_id;
+    m.refNombre = m.ref_nombre; delete m.ref_nombre;
+    m.numPales  = m.num_pales;  delete m.num_pales;
+  }
+  return m;
+}
+
+// Estado de carga global
+let _loading = false;
+function setLoading(on){
+  _loading = on;
+  document.getElementById('status-dot-el').style.background = on ? 'var(--alert)' : 'var(--success)';
+}
+
+// ─────────────────────────────────────────
+// NAVEGACIÓN
+// ─────────────────────────────────────────
+const PAGE_TITLES = {
+  dashboard:'Dashboard', produccion:'Planificación', inventario:'Inventario',
+  consumo:'Consumo', pedidos:'Pedidos', referencias:'Referencias', cajas:'Tipos de caja',
+  pales:'Tipos de palé', auxiliares:'Mat. auxiliares'
+};
+
+function navigate(pageId){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const pageEl = document.getElementById('page-'+pageId);
+  const navEl  = document.querySelector(`.nav-item[data-page="${pageId}"]`);
+  if(pageEl) pageEl.classList.add('active');
+  if(navEl)  navEl.classList.add('active');
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[pageId]||pageId;
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+  if(pageId==='cajas')       renderCajas();
+  if(pageId==='pales')       renderPales();
+  if(pageId==='auxiliares')  renderAux();
+  if(pageId==='referencias') renderRefs();
+  if(pageId==='inventario')  initInvView();
+  if(pageId==='produccion')  renderGantt();
+  if(pageId==='pedidos')     renderPedidos();
+  if(pageId==='consumo')     renderConsumo();
+  if(pageId==='dashboard')   renderDashboard();
+}
+
+document.querySelectorAll('.nav-item[data-page]').forEach(item=>{
+  item.addEventListener('click',()=>navigate(item.dataset.page));
+});
+
+// mobile
+const sidebar=document.getElementById('sidebar');
+const overlay=document.getElementById('overlay');
+document.getElementById('menu-toggle').addEventListener('click',()=>{
+  sidebar.classList.toggle('open'); overlay.classList.toggle('open');
+});
+overlay.addEventListener('click',()=>{
+  sidebar.classList.remove('open'); overlay.classList.remove('open');
+});
+
+// fecha
+(function(){
+  const d=new Date();
+  document.getElementById('topbar-date').textContent=
+    d.toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'});
+})();
+
+// toast
+function showToast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=type==='error'?'var(--alert-dim)':'var(--surface)';
+  t.style.color=type==='error'?'var(--alert)':'var(--text)';
+  t.style.transform='translateX(-50%) translateY(0)';
+  setTimeout(()=>{ t.style.transform='translateX(-50%) translateY(80px)'; },2400);
+}
+document.getElementById('toast').style.cssText+=';position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);border:1px solid var(--border2);padding:10px 20px;border-radius:var(--r);font-size:13px;transition:transform .25s ease;z-index:999;white-space:nowrap;pointer-events:none;';
+
+// ─────────────────────────────────────────
+// MODAL UTILS
+// ─────────────────────────────────────────
+function openModal(type){
+  document.getElementById('modal-'+type).classList.add('open');
+}
+function closeModal(type){
+  document.getElementById('modal-'+type).classList.remove('open');
+  resetModal(type);
+}
+function resetModal(type){
+  if(type==='caja'){
+    document.getElementById('caja-edit-id').value='';
+    document.getElementById('caja-nombre').value='';
+    document.getElementById('caja-articulo').value='';
+    document.getElementById('caja-fab-list').innerHTML='';
+    document.getElementById('caja-fab-input').value='';
+    document.getElementById('modal-caja-title').textContent='Nueva caja';
+    _cajaFabs=[];
+  }
+  if(type==='pale'){
+    document.getElementById('pale-edit-id').value='';
+    document.getElementById('pale-nombre').value='';
+    document.getElementById('pale-articulo').value='';
+    document.getElementById('pale-ancho').value='';
+    document.getElementById('pale-largo').value='';
+    document.getElementById('modal-pale-title').textContent='Nuevo palé';
+  }
+  if(type==='aux'){
+    document.getElementById('aux-edit-id').value='';
+    document.getElementById('aux-nombre').value='';
+    document.getElementById('aux-articulo').value='';
+    document.getElementById('aux-unidad').value='';
+    document.getElementById('aux-unidad-custom').value='';
+    document.getElementById('aux-unidad-custom').style.display='none';
+    document.getElementById('aux-fab-list').innerHTML='';
+    document.getElementById('aux-fab-input').value='';
+    document.getElementById('modal-aux-title').textContent='Nuevo material auxiliar';
+    _auxFabs=[];
+  }
+}
+
+// cerrar modal al click en backdrop
+['modal-caja','modal-pale','modal-aux'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(e){
+    if(e.target===this) closeModal(id.replace('modal-',''));
+  });
+});
+
+// ─────────────────────────────────────────
+// FABRICANTES CHIPS
+// ─────────────────────────────────────────
+let _cajaFabs=[], _auxFabs=[];
+
+function addFabricante(type){
+  const input=document.getElementById(type+'-fab-input');
+  const val=input.value.trim();
+  if(!val) return;
+  const arr = type==='caja'?_cajaFabs:_auxFabs;
+  if(arr.find(f=>f.toLowerCase()===val.toLowerCase())){ showToast('Fabricante ya añadido','error'); return; }
+  arr.push(val);
+  renderFabChips(type);
+  input.value='';
+  input.focus();
+}
+
+function removeFabricante(type,name){
+  if(type==='caja') _cajaFabs=_cajaFabs.filter(f=>f!==name);
+  else               _auxFabs=_auxFabs.filter(f=>f!==name);
+  renderFabChips(type);
+}
+
+function renderFabChips(type){
+  const arr=type==='caja'?_cajaFabs:_auxFabs;
+  const el=document.getElementById(type+'-fab-list');
+  el.innerHTML=arr.map(f=>`
+    <span class="fab-chip">
+      ${f}
+      <button class="fab-chip-remove" onclick="removeFabricante('${type}','${f.replace(/'/g,"\\'")}')">×</button>
+    </span>`).join('');
+}
+
+// unidad custom
+document.getElementById('aux-unidad').addEventListener('change',function(){
+  document.getElementById('aux-unidad-custom').style.display=this.value==='otro'?'block':'none';
+});
+
+// ─────────────────────────────────────────
+// CAJAS CRUD
+// ─────────────────────────────────────────
+async function saveCaja(){
+  const nombre=document.getElementById('caja-nombre').value.trim();
+  if(!nombre){ showToast('El nombre es obligatorio','error'); return; }
+  const id=document.getElementById('caja-edit-id').value;
+  const articulo=document.getElementById('caja-articulo').value.trim();
+  setLoading(true);
+  if(id){
+    await dbUpdate('cajas',id,{nombre,articulo,fabricantes:[..._cajaFabs]});
+    showToast('Caja actualizada');
+  } else {
+    await dbInsert('cajas',{id:uid(),nombre,articulo,fabricantes:[..._cajaFabs]});
+    showToast('Caja añadida');
+  }
+  setLoading(false);
+  closeModal('caja');
+  await renderCajas();
+}
+
+async function editCaja(id){
+  const cajas=await dbGet('cajas');
+  const c=cajas.find(x=>x.id===id);
+  if(!c) return;
+  document.getElementById('caja-edit-id').value=c.id;
+  document.getElementById('caja-nombre').value=c.nombre;
+  document.getElementById('caja-articulo').value=c.articulo||'';
+  _cajaFabs=[...(c.fabricantes||[])];
+  renderFabChips('caja');
+  document.getElementById('modal-caja-title').textContent='Editar caja';
+  openModal('caja');
+}
+
+async function deleteCaja(id){
+  const cajas=await dbGet('cajas');
+  const c=cajas.find(x=>x.id===id);
+  showConfirm(`Eliminar "${c?.nombre}"`,`¿Seguro que quieres eliminar este tipo de caja?`,async()=>{
+    setLoading(true);
+    await dbDelete('cajas',id);
+    setLoading(false);
+    await renderCajas();
+    showToast('Caja eliminada');
+  });
+}
+
+async function renderCajas(){
+  const cajas=await dbGet('cajas');
+  const tbody=document.getElementById('cajas-tbody');
+  const empty=document.getElementById('cajas-empty');
+  const wrap=document.getElementById('cajas-table-wrap');
+  if(!cajas.length){ wrap.style.display='none'; empty.style.display='flex'; return; }
+  wrap.style.display='block'; empty.style.display='none';
+  tbody.innerHTML=cajas.map(c=>`
+    <tr>
+      <td><strong>${c.nombre}</strong></td>
+      <td class="td-muted">${c.fabricantes&&c.fabricantes.length?c.fabricantes.join(', '):'<span style="color:var(--text3)">Sin fabricantes</span>'}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editCaja('${c.id}')">Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCaja('${c.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ─────────────────────────────────────────
+// PALÉS CRUD
+// ─────────────────────────────────────────
+async function savePale(){
+  const nombre=document.getElementById('pale-nombre').value.trim();
+  if(!nombre){ showToast('El nombre es obligatorio','error'); return; }
+  const id=document.getElementById('pale-edit-id').value;
+  const articulo=document.getElementById('pale-articulo').value.trim();
+  const ancho=document.getElementById('pale-ancho').value;
+  const largo=document.getElementById('pale-largo').value;
+  const dims=ancho&&largo?`${ancho}×${largo} cm`:'';
+  setLoading(true);
+  if(id){
+    await dbUpdate('pales',id,{nombre,articulo,ancho,largo,dims});
+    showToast('Palé actualizado');
+  } else {
+    await dbInsert('pales',{id:uid(),nombre,articulo,ancho,largo,dims});
+    showToast('Palé añadido');
+  }
+  setLoading(false);
+  closeModal('pale');
+  await renderPales();
+}
+
+async function editPale(id){
+  const pales=await dbGet('pales');
+  const p=pales.find(x=>x.id===id);
+  if(!p) return;
+  document.getElementById('pale-edit-id').value=p.id;
+  document.getElementById('pale-nombre').value=p.nombre;
+  document.getElementById('pale-articulo').value=p.articulo||'';
+  document.getElementById('pale-ancho').value=p.ancho||'';
+  document.getElementById('pale-largo').value=p.largo||'';
+  document.getElementById('modal-pale-title').textContent='Editar palé';
+  openModal('pale');
+}
+
+async function deletePale(id){
+  const pales=await dbGet('pales');
+  const p=pales.find(x=>x.id===id);
+  showConfirm(`Eliminar "${p?.nombre}"`,`¿Seguro que quieres eliminar este tipo de palé?`,async()=>{
+    setLoading(true);
+    await dbDelete('pales',id);
+    setLoading(false);
+    await renderPales();
+    showToast('Palé eliminado');
+  });
+}
+
+async function renderPales(){
+  const pales=await dbGet('pales');
+  const tbody=document.getElementById('pales-tbody');
+  const empty=document.getElementById('pales-empty');
+  const wrap=document.getElementById('pales-table-wrap');
+  if(!pales.length){ wrap.style.display='none'; empty.style.display='flex'; return; }
+  wrap.style.display='block'; empty.style.display='none';
+  tbody.innerHTML=pales.map(p=>`
+    <tr>
+      <td><strong>${p.nombre}</strong></td>
+      <td class="td-muted">${p.dims||'<span style="color:var(--text3)">Sin dimensiones</span>'}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editPale('${p.id}')">Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePale('${p.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ─────────────────────────────────────────
+// AUXILIARES CRUD
+// ─────────────────────────────────────────
+async function saveAux(){
+  const nombre=document.getElementById('aux-nombre').value.trim();
+  if(!nombre){ showToast('El nombre es obligatorio','error'); return; }
+  const selectVal=document.getElementById('aux-unidad').value;
+  const unidad=selectVal==='otro'?document.getElementById('aux-unidad-custom').value.trim():selectVal;
+  if(!unidad){ showToast('La unidad de medida es obligatoria','error'); return; }
+  const id=document.getElementById('aux-edit-id').value;
+  const articulo=document.getElementById('aux-articulo').value.trim();
+  setLoading(true);
+  if(id){
+    await dbUpdate('aux',id,{nombre,articulo,unidad,fabricantes:[..._auxFabs]});
+    showToast('Material actualizado');
+  } else {
+    await dbInsert('aux',{id:uid(),nombre,articulo,unidad,fabricantes:[..._auxFabs]});
+    showToast('Material añadido');
+  }
+  setLoading(false);
+  closeModal('aux');
+  await renderAux();
+}
+
+async function editAux(id){
+  const aux=await dbGet('aux');
+  const a=aux.find(x=>x.id===id);
+  if(!a) return;
+  document.getElementById('aux-edit-id').value=a.id;
+  document.getElementById('aux-nombre').value=a.nombre;
+  document.getElementById('aux-articulo').value=a.articulo||'';
+  const sel=document.getElementById('aux-unidad');
+  const opts=['ud','plancha','pieza','rollo','kg','m','m²'];
+  if(opts.includes(a.unidad)){
+    sel.value=a.unidad;
+    document.getElementById('aux-unidad-custom').style.display='none';
+  } else {
+    sel.value='otro';
+    document.getElementById('aux-unidad-custom').value=a.unidad;
+    document.getElementById('aux-unidad-custom').style.display='block';
+  }
+  _auxFabs=[...(a.fabricantes||[])];
+  renderFabChips('aux');
+  document.getElementById('modal-aux-title').textContent='Editar material auxiliar';
+  openModal('aux');
+}
+
+async function deleteAux(id){
+  const aux=await dbGet('aux');
+  const a=aux.find(x=>x.id===id);
+  showConfirm(`Eliminar "${a?.nombre}"`,`¿Seguro que quieres eliminar este material auxiliar?`,async()=>{
+    setLoading(true);
+    await dbDelete('aux',id);
+    setLoading(false);
+    await renderAux();
+    showToast('Material eliminado');
+  });
+}
+
+async function renderAux(){
+  const aux=await dbGet('aux');
+  const tbody=document.getElementById('aux-tbody');
+  const empty=document.getElementById('aux-empty');
+  const wrap=document.getElementById('aux-table-wrap');
+  if(!aux.length){ wrap.style.display='none'; empty.style.display='flex'; return; }
+  wrap.style.display='block'; empty.style.display='none';
+  tbody.innerHTML=aux.map(a=>`
+    <tr>
+      <td><strong>${a.nombre}</strong></td>
+      <td><span class="badge badge-neutral">${a.unidad}</span></td>
+      <td class="td-muted">${a.fabricantes&&a.fabricantes.length?a.fabricantes.join(', '):'<span style="color:var(--text3)">Sin fabricantes</span>'}</td>
+      <td><div class="td-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editAux('${a.id}')">Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAux('${a.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div></td>
+    </tr>`).join('');
+}
+
+// ─────────────────────────────────────────
+// CONFIRM DIALOG
+// ─────────────────────────────────────────
+let _confirmCb=null;
+function showConfirm(title,msg,cb){
+  document.getElementById('confirm-title').textContent=title;
+  document.getElementById('confirm-msg').textContent=msg;
+  _confirmCb=cb;
+  document.getElementById('confirm-dialog').classList.add('open');
+}
+function closeConfirm(){
+  document.getElementById('confirm-dialog').classList.remove('open');
+  _confirmCb=null;
+}
+document.getElementById('confirm-ok').addEventListener('click',()=>{
+  if(_confirmCb) _confirmCb();
+  closeConfirm();
+});
+document.getElementById('confirm-dialog').addEventListener('click',function(e){
+  if(e.target===this) closeConfirm();
+});
+
+// ─────────────────────────────────────────
+// CONSUMO
+// ─────────────────────────────────────────
+function openConsumoModal(){
+  const refs = (await dbGet('refs'));
+  const sel = document.getElementById('con-ref');
+  sel.innerHTML = '<option value="">Selecciona referencia...</option>' +
+    refs.map(r=>`<option value="${r.id}">${r.nombre}</option>`).join('');
+  document.getElementById('con-pales').value='';
+  document.getElementById('con-calc').style.display='none';
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('con-fecha').value=today;
+  document.getElementById('modal-consumo').classList.add('open');
+}
+function closeConsumoModal(){
+  document.getElementById('modal-consumo').classList.remove('open');
+}
+document.getElementById('modal-consumo').addEventListener('click',function(e){
+  if(e.target===this) closeConsumoModal();
+});
+
+function onConRefChange(){ calcConsumo(); }
+
+async function calcConsumo(){
+  const refId = document.getElementById('con-ref').value;
+  const numPales = parseInt(document.getElementById('con-pales').value);
+  const calcEl = document.getElementById('con-calc');
+  const calcText = document.getElementById('con-calc-text');
+  if(!refId||!numPales||numPales<1){ calcEl.style.display='none'; return; }
+
+  const ref = (await dbGet('refs')).find(r=>r.id===refId);
+  if(!ref){ calcEl.style.display='none'; return; }
+
+  const pales = (await dbGet('pales'));
+  const cajas = (await dbGet('cajas'));
+  const auxs  = (await dbGet('aux'));
+  const conteos = (await dbGet('conteos'));
+
+  function stockOf(tipo,matId){
+    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    return last?last.cantidad:0;
+  }
+
+  const lines = [];
+
+  // palé
+  const paleNombre = pales.find(p=>p.id===ref.paleId)?.nombre||'—';
+  const stockPale = stockOf('pale',ref.paleId);
+  const newStockPale = stockPale - numPales;
+  lines.push(`<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:6px;">
+    <span>${numPales} × palé <strong>${paleNombre}</strong></span>
+    <span style="color:${newStockPale<0?'var(--alert)':'var(--text2)'};">${stockPale} → <strong>${newStockPale}</strong></span>
+  </div>`);
+
+  // cajas
+  if(ref.llevaCaja && ref.cajaId && ref.cajasPale){
+    const totalCajas = numPales * ref.cajasPale;
+    const cajaNombre = cajas.find(c=>c.id===ref.cajaId)?.nombre||'—';
+    const stockCaja = stockOf('caja',ref.cajaId);
+    const newStockCaja = stockCaja - totalCajas;
+    lines.push(`<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:6px;">
+      <span>${totalCajas.toLocaleString('es-ES')} × caja <strong>${cajaNombre}</strong></span>
+      <span style="color:${newStockCaja<0?'var(--alert)':'var(--text2)'};">${stockCaja.toLocaleString('es-ES')} → <strong>${newStockCaja.toLocaleString('es-ES')}</strong></span>
+    </div>`);
+  }
+
+  // auxiliares
+  (ref.auxiliares||[]).forEach(a=>{
+    const aux = auxs.find(x=>x.id===a.auxId);
+    if(!aux) return;
+    const total = numPales * a.qty;
+    const stockAux = stockOf('aux',a.auxId);
+    const newStock = stockAux - total;
+    lines.push(`<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:6px;">
+      <span>${total.toLocaleString('es-ES')} ${aux.unidad} × <strong>${aux.nombre}</strong></span>
+      <span style="color:${newStock<0?'var(--alert)':'var(--text2)'};">${stockAux.toLocaleString('es-ES')} → <strong>${newStock.toLocaleString('es-ES')}</strong></span>
+    </div>`);
+  });
+
+  calcText.innerHTML = lines.join('');
+  calcEl.style.display='block';
+}
+
+async function saveConsumo(){
+  const refId = document.getElementById('con-ref').value;
+  if(!refId){ showToast('Selecciona una referencia','error'); return; }
+  const numPales = parseInt(document.getElementById('con-pales').value);
+  if(!numPales||numPales<1){ showToast('Introduce el número de palés','error'); return; }
+  const fecha = document.getElementById('con-fecha').value||new Date().toISOString().slice(0,10);
+
+  const ref = (await dbGet('refs')).find(r=>r.id===refId);
+  if(!ref) return;
+
+  const conteos = await dbGet('conteos');
+  function stockOf(tipo,matId){
+    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    return last?last.cantidad:0;
+  }
+
+  const descuentos = [];
+  const ts = new Date(fecha+'T12:00:00').toISOString();
+  const conteosToInsert = [];
+  const pales = await dbGet('pales');
+  const cajas = await dbGet('cajas');
+  const auxs  = await dbGet('aux');
+
+  // palé
+  if(ref.paleId){
+    const paleNombre = pales.find(p=>p.id===ref.paleId)?.nombre||'palé';
+    const newStock = stockOf('pale',ref.paleId) - numPales;
+    conteosToInsert.push({id:uid(),tipo:'pale',materialId:ref.paleId,nombre:paleNombre,cantidad:Math.max(0,newStock),unit:'ud',fecha:ts,esConsumo:true});
+    descuentos.push(`${numPales} palé ${paleNombre}`);
+  }
+  // cajas
+  if(ref.llevaCaja && ref.cajaId && ref.cajasPale){
+    const cajaNombre = cajas.find(c=>c.id===ref.cajaId)?.nombre||'caja';
+    const total = numPales * ref.cajasPale;
+    const newStock = stockOf('caja',ref.cajaId) - total;
+    conteosToInsert.push({id:uid(),tipo:'caja',materialId:ref.cajaId,nombre:cajaNombre,cantidad:Math.max(0,newStock),unit:'ud',fecha:ts,esConsumo:true});
+    descuentos.push(`${total.toLocaleString('es-ES')} ${cajaNombre}`);
+  }
+  // auxiliares
+  for(const a of (ref.auxiliares||[])){
+    const aux = auxs.find(x=>x.id===a.auxId);
+    if(!aux) continue;
+    const total = numPales * a.qty;
+    const newStock = stockOf('aux',a.auxId) - total;
+    conteosToInsert.push({id:uid(),tipo:'aux',materialId:a.auxId,nombre:aux.nombre,cantidad:Math.max(0,newStock),unit:aux.unidad,fecha:ts,esConsumo:true});
+    descuentos.push(`${total.toLocaleString('es-ES')} ${aux.unidad} ${aux.nombre}`);
+  }
+
+  setLoading(true);
+  for(const c of conteosToInsert) await dbInsert('conteos',c);
+  delete _cache['conteos'];
+  await dbInsert('consumos',{id:uid(),refId,refNombre:ref.nombre,numPales,fecha,descuentos});
+  setLoading(false);
+
+  closeConsumoModal();
+  await renderConsumo();
+  await renderInventario();
+  showToast(`Salida registrada · ${numPales} palés de ${ref.nombre}`);
+}
+
+async function renderConsumo(){
+  const registros = (await dbGet('consumos')).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const tbody = document.getElementById('consumo-tbody');
+  const empty = document.getElementById('consumo-empty');
+  const wrap  = document.getElementById('consumo-table-wrap');
+
+  if(!registros.length){ wrap.style.display='none'; empty.style.display='flex'; return; }
+  wrap.style.display='block'; empty.style.display='none';
+
+  tbody.innerHTML = registros.map(r=>`
+    <tr>
+      <td class="td-muted">${r.fecha}</td>
+      <td><strong>${r.refNombre}</strong></td>
+      <td><span class="badge badge-alert">${r.numPales} palés</span></td>
+      <td class="td-muted" style="font-size:11px;">${(r.descuentos||[]).join(' · ')}</td>
+    </tr>`).join('');
+}
+
+// ─────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────
+async function renderDashboard(){
+  const ordenes  = (await dbGet('ordenes'));
+  const refs     = (await dbGet('refs'));
+  const conteos  = (await dbGet('conteos'));
+  const pedidos  = (await dbGet('pedidos'));
+  const pales    = (await dbGet('pales'));
+  const cajas    = (await dbGet('cajas'));
+  const auxs     = (await dbGet('aux'));
+
+  const today = new Date().toISOString().slice(0,10);
+
+  function stockOf(tipo,matId){
+    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    return last?last.cantidad:0;
+  }
+
+  // Producciones activas hoy
+  const activas = ordenes.filter(o=>o.inicio<=today&&o.fin>=today);
+  document.getElementById('dash-activas').textContent = activas.length||'0';
+
+  // Pedidos pendientes
+  const pedPendientes = pedidos.filter(p=>p.estado==='pendiente'||p.estado==='parcial').length;
+
+  // Calcular necesidades totales vs stock → déficit
+  const nec = {};
+  ordenes.forEach(o=>{
+    const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
+    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(o.cantidad/ref.cajasPale):Math.ceil(o.cantidad/ref.proddia);
+    if(ref.paleId){ nec['pale_'+ref.paleId]=(nec['pale_'+ref.paleId]||0)+numPales; }
+    if(ref.llevaCaja&&ref.cajaId){ nec['caja_'+ref.cajaId]=(nec['caja_'+ref.cajaId]||0)+numPales*ref.cajasPale; }
+    (ref.auxiliares||[]).forEach(a=>{ nec['aux_'+a.auxId]=(nec['aux_'+a.auxId]||0)+numPales*a.qty; });
+  });
+
+  let totalStock=0, deficitCount=0, alertItems=[];
+  Object.entries(nec).forEach(([k,necesario])=>{
+    const [tipo,matId]=k.split('_');
+    const stock=stockOf(tipo,matId);
+    totalStock+=stock;
+    if(stock<necesario){
+      deficitCount++;
+      let nombre='';
+      if(tipo==='pale') nombre=pales.find(p=>p.id===matId)?.nombre||'—';
+      if(tipo==='caja') nombre=cajas.find(c=>c.id===matId)?.nombre||'—';
+      if(tipo==='aux')  nombre=auxs.find(a=>a.id===matId)?.nombre||'—';
+      alertItems.push({nombre,stock,necesario,deficit:necesario-stock,tipo});
+    }
+  });
+
+  document.getElementById('dash-deficit').textContent = deficitCount>0?deficitCount+' material'+(deficitCount>1?'es':''):'OK';
+  document.getElementById('dash-deficit').className = 'stat-value '+(deficitCount>0?'alert':'success');
+
+  // stats cajas y palés (total stock)
+  const totalCajas = cajas.reduce((s,c)=>s+stockOf('caja',c.id),0);
+  const totalPales  = pales.reduce((s,p)=>s+stockOf('pale',p.id),0);
+  document.getElementById('dash-cajas').textContent = totalCajas.toLocaleString('es-ES');
+  document.getElementById('dash-pales').textContent = totalPales.toLocaleString('es-ES');
+
+  // Dashboard body
+  const dashBody = document.getElementById('dash-body');
+  let html='';
+
+  // Producciones activas
+  if(activas.length){
+    html+=`<div style="font-size:12px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">En producción hoy</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:24px;">
+    ${activas.map((o,i)=>{
+      const ref=refs.find(r=>r.id===o.refId);
+      const color=GANTT_COLORS[i%GANTT_COLORS.length];
+      const daysLeft=Math.round((new Date(o.fin)-new Date(today))/(1000*60*60*24))+1;
+      return `<div style="background:var(--sidebar);border:1px solid var(--border);border-left:3px solid ${color};border-radius:var(--rl);padding:14px 16px;">
+        <div style="font-size:14px;font-weight:500;color:var(--text);">${ref?.nombre||'—'}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px;">${o.cantidad.toLocaleString('es-ES')} pzas · ${daysLeft} día${daysLeft!==1?'s':''} restante${daysLeft!==1?'s':''}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">Fin: ${o.fin}</div>
+      </div>`;
+    }).join('')}
+    </div>`;
+  }
+
+  // Alertas déficit
+  if(alertItems.length){
+    html+=`<div style="font-size:12px;font-weight:500;color:var(--alert);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">⚠ Déficit de material</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:24px;">
+    ${alertItems.map(item=>`
+      <div style="background:var(--sidebar);border:1px solid rgba(240,136,62,.4);border-radius:var(--rl);padding:14px 16px;">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">${item.tipo==='pale'?'Palé':item.tipo==='caja'?'Caja':'Auxiliar'}</div>
+        <div style="font-size:14px;font-weight:500;color:var(--text);margin-top:2px;">${item.nombre}</div>
+        <div style="margin-top:8px;display:flex;justify-content:space-between;font-size:12px;">
+          <span style="color:var(--text2);">Stock: <strong style="color:var(--text);">${item.stock.toLocaleString('es-ES')}</strong></span>
+          <span style="color:var(--text2);">Necesario: <strong style="color:var(--text);">${item.necesario.toLocaleString('es-ES')}</strong></span>
+        </div>
+        <div style="margin-top:6px;font-size:13px;font-weight:600;color:var(--alert);">Déficit: −${item.deficit.toLocaleString('es-ES')}</div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // Pedidos pendientes
+  const pedActivos=pedidos.filter(p=>p.estado==='pendiente'||p.estado==='parcial');
+  if(pedActivos.length){
+    html+=`<div style="font-size:12px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Pedidos pendientes de llegada</div>
+    <div class="table-wrap" style="margin-bottom:24px;">
+    <table><thead><tr><th>Pedido</th><th>Tipo</th><th>Est. llegada</th><th>Estado</th></tr></thead><tbody>
+    ${pedActivos.map(p=>`<tr>
+      <td style="font-family:monospace;font-size:12px;color:var(--accent);">${p.num}</td>
+      <td class="td-muted">${{caja:'Cajas',pale:'Palés',aux:'Auxiliares'}[p.tipo]||p.tipo}</td>
+      <td class="td-muted">${p.fechaEst||'—'}</td>
+      <td>${p.estado==='parcial'?'<span class="badge badge-accent">Parcial</span>':'<span class="badge badge-alert">Pendiente</span>'}</td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  }
+
+  if(!html){
+    html=`<div class="empty-state" style="min-height:200px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" width="44" height="44" style="opacity:.2;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      <div class="empty-state-title">Todo en orden</div>
+      <div class="empty-state-sub">No hay alertas ni producciones activas ahora mismo.</div>
+    </div>`;
+  }
+
+  dashBody.innerHTML=html;
+}
+
+// ─────────────────────────────────────────
+// PEDIDOS
+// ─────────────────────────────────────────
+let _pedTab = 'activos';
+let _pedLineas = []; // [{matId, nombre, articulo, unit, cantidad}]
+
+function setPedTab(tab){
+  _pedTab = tab;
+  document.querySelectorAll('.section-tab[data-ped-tab]').forEach(t=>{
+    t.classList.toggle('active', t.dataset.pedTab===tab);
+  });
+  renderPedidos();
+}
+
+async function nextPedNum(){
+  const year = new Date().getFullYear();
+  const pedidos = await dbGet('pedidos');
+  const thisYear = pedidos.filter(p=>p.num&&p.num.includes(`-${year}-`));
+  const max = thisYear.reduce((m,p)=>{
+    const n = parseInt(p.num.split('-').pop())||0;
+    return Math.max(m,n);
+  },0);
+  return `PED-${year}-${String(max+1).padStart(3,'0')}`;
+}
+
+async function openPedidoModal(){
+  _pedLineas = [];
+  document.getElementById('ped-tipo').value='';
+  document.getElementById('ped-fecha-est').value='';
+  document.getElementById('ped-obs').value='';
+  document.getElementById('ped-lineas').innerHTML='';
+  document.getElementById('ped-add-linea-btn').style.display='none';
+  document.getElementById('ped-suggest-btn').style.display='none';
+  document.getElementById('modal-pedido-title').textContent='Nuevo pedido';
+  document.getElementById('modal-pedido').classList.add('open');
+}
+
+function closePedidoModal(){
+  document.getElementById('modal-pedido').classList.remove('open');
+}
+document.getElementById('modal-pedido').addEventListener('click',function(e){
+  if(e.target===this) closePedidoModal();
+});
+
+function onPedTipoChange(){
+  _pedLineas=[];
+  document.getElementById('ped-lineas').innerHTML='';
+  document.getElementById('ped-add-linea-btn').style.display='inline-flex';
+  document.getElementById('ped-suggest-btn').style.display='inline-flex';
+}
+
+async function getMaterialOptions(tipo){
+  if(tipo==='caja') return (await dbGet('cajas')).map(c=>({id:c.id,nombre:c.nombre,articulo:c.articulo||'',unit:'ud'}));
+  if(tipo==='pale') return (await dbGet('pales')).map(p=>({id:p.id,nombre:p.nombre,articulo:p.articulo||'',unit:'ud'}));
+  if(tipo==='aux')  return (await dbGet('aux')).map(a=>({id:a.id,nombre:a.nombre,articulo:a.articulo||'',unit:a.unidad}));
+  return [];
+}
+
+async function addPedLinea(prefill){
+  const tipo = document.getElementById('ped-tipo').value;
+  if(!tipo) return;
+  const opts = await getMaterialOptions(tipo);
+  const lineId = uid();
+  const div = document.createElement('div');
+  div.className='ped-linea';
+  div.id='ped-linea-'+lineId;
+  div.innerHTML=`
+    <select class="form-select" id="psel-${lineId}">
+      <option value="">Selecciona material...</option>
+      ${opts.map(o=>`<option value="${o.id}" data-art="${o.articulo}" data-unit="${o.unit}" data-nombre="${o.nombre}" ${prefill&&prefill.matId===o.id?'selected':''}>${o.nombre}</option>`).join('')}
+    </select>
+    <input type="number" class="form-input" id="pqty-${lineId}" placeholder="Cantidad" min="1" value="${prefill?.cantidad||''}" />
+    <button class="aux-line-remove" onclick="document.getElementById('ped-linea-${lineId}').remove()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>`;
+  document.getElementById('ped-lineas').appendChild(div);
+}
+
+async function suggestLineas(){
+  const tipo = document.getElementById('ped-tipo').value;
+  if(!tipo) return;
+  const conteos = await dbGet('conteos');
+  const ordenes = await dbGet('ordenes');
+  const refs    = await dbGet('refs');
+  const opts    = await getMaterialOptions(tipo);
+
+  function stockOf(matId){ const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0]; return last?last.cantidad:0; }
+
+  const nec = {};
+  ordenes.forEach(o=>{
+    const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
+    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(o.cantidad/ref.cajasPale):Math.ceil(o.cantidad/ref.proddia);
+    if(tipo==='pale'&&ref.paleId){ nec[ref.paleId]=(nec[ref.paleId]||0)+numPales; }
+    if(tipo==='caja'&&ref.llevaCaja&&ref.cajaId){ nec[ref.cajaId]=(nec[ref.cajaId]||0)+numPales*ref.cajasPale; }
+    if(tipo==='aux'){ (ref.auxiliares||[]).forEach(a=>{ nec[a.auxId]=(nec[a.auxId]||0)+numPales*a.qty; }); }
+  });
+
+  document.getElementById('ped-lineas').innerHTML='';
+  let added=0;
+  for(const o of opts){
+    const necesario=nec[o.id]||0;
+    const stock=stockOf(o.id);
+    const deficit=necesario-stock;
+    if(deficit>0){ await addPedLinea({matId:o.id,cantidad:deficit}); added++; }
+  }
+  if(!added) showToast('No hay déficit detectado para este tipo de material');
+}
+
+async function savePedido(){
+  const tipo = document.getElementById('ped-tipo').value;
+  if(!tipo){ showToast('Selecciona el tipo de material','error'); return; }
+
+  const lineas=[];
+  document.querySelectorAll('#ped-lineas .ped-linea').forEach(line=>{
+    const lineId=line.id.replace('ped-linea-','');
+    const sel=document.getElementById('psel-'+lineId);
+    const qty=parseFloat(document.getElementById('pqty-'+lineId)?.value);
+    if(!sel?.value||!qty||qty<=0) return;
+    const opt=sel.options[sel.selectedIndex];
+    lineas.push({matId:sel.value,nombre:opt.dataset.nombre,articulo:opt.dataset.art,unit:opt.dataset.unit,cantidad:qty,recibido:0});
+  });
+  if(!lineas.length){ showToast('Añade al menos una línea al pedido','error'); return; }
+
+  const pedido={
+    id:uid(), num:await nextPedNum(), tipo,
+    fecha:new Date().toISOString().slice(0,10),
+    fechaEst:document.getElementById('ped-fecha-est').value||null,
+    obs:document.getElementById('ped-obs').value.trim(),
+    lineas, recepciones:[], estado:'pendiente'
+  };
+  setLoading(true);
+  await dbInsert('pedidos',pedido);
+  setLoading(false);
+  closePedidoModal();
+  await renderPedidos();
+  showToast(`Pedido ${pedido.num} creado`);
+}
+
+// RECEPCIÓN
+async function openRecepcionModal(pedidoId){
+  const pedido=(await dbGet('pedidos')).find(p=>p.id===pedidoId);
+  if(!pedido) return;
+  document.getElementById('rec-pedido-id').value=pedidoId;
+  document.getElementById('modal-rec-title').textContent=`Recepción · ${pedido.num}`;
+  document.getElementById('rec-proveedor').value='';
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('rec-fecha').value=today;
+
+  const lineasHtml=pedido.lineas.map((l,i)=>{
+    const pendiente=l.cantidad-l.recibido;
+    if(pendiente<=0) return '';
+    return `<div class="ped-linea-check" style="margin-bottom:12px;">
+      <input type="checkbox" id="rchk-${i}" style="width:16px;height:16px;accent-color:var(--accent);" checked />
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--text);">${l.nombre}</div>
+        <div style="font-size:11px;color:var(--text3);">Pendiente: ${pendiente.toLocaleString('es-ES')} ${l.unit}</div>
+      </div>
+      <input type="number" class="form-input" id="rqty-${i}" value="${pendiente}" min="0" max="${pendiente}" style="text-align:right;" />
+      <div style="font-size:12px;color:var(--text2);padding-left:4px;">${l.unit}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('rec-lineas').innerHTML=lineasHtml||'<div style="color:var(--text3);font-size:13px;">No hay líneas pendientes de recibir.</div>';
+  document.getElementById('modal-recepcion').classList.add('open');
+}
+
+function closeRecepcionModal(){
+  document.getElementById('modal-recepcion').classList.remove('open');
+}
+document.getElementById('modal-recepcion').addEventListener('click',function(e){
+  if(e.target===this) closeRecepcionModal();
+});
+
+async function saveRecepcion(){
+  const pedidoId=document.getElementById('rec-pedido-id').value;
+  const proveedor=document.getElementById('rec-proveedor').value.trim();
+  const fecha=document.getElementById('rec-fecha').value||new Date().toISOString().slice(0,10);
+  const pedidos=await dbGet('pedidos');
+  const pedido=JSON.parse(JSON.stringify(pedidos.find(p=>p.id===pedidoId)));
+  if(!pedido) return;
+
+  const recItems=[];
+  const conteosToInsert=[];
+  const conteos=await dbGet('conteos');
+
+  for(let i=0;i<pedido.lineas.length;i++){
+    const l=pedido.lineas[i];
+    const chk=document.getElementById('rchk-'+i);
+    const qty=parseFloat(document.getElementById('rqty-'+i)?.value)||0;
+    if(chk&&chk.checked&&qty>0){
+      pedido.lineas[i].recibido=(l.recibido||0)+qty;
+      recItems.push({matId:l.matId,nombre:l.nombre,cantidad:qty,unit:l.unit});
+      const tipo=pedido.tipo;
+      const lastStock=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===l.matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+      const stockActual=lastStock?lastStock.cantidad:0;
+      conteosToInsert.push({id:uid(),tipo,materialId:l.matId,nombre:l.nombre,cantidad:stockActual+qty,unit:l.unit,fecha:new Date().toISOString(),esEntrada:true,proveedor});
+    }
+  }
+
+  if(!recItems.length){ showToast('Selecciona al menos una línea','error'); return; }
+
+  const allDone=pedido.lineas.every(l=>l.recibido>=l.cantidad);
+  pedido.estado=allDone?'completado':'parcial';
+  pedido.recepciones.push({id:uid(),fecha,proveedor,items:recItems});
+
+  setLoading(true);
+  for(const c of conteosToInsert) await dbInsert('conteos',c);
+  delete _cache['conteos'];
+  await dbUpdate('pedidos',pedidoId,{lineas:pedido.lineas,recepciones:pedido.recepciones,estado:pedido.estado});
+  setLoading(false);
+
+  closeRecepcionModal();
+  await renderPedidos();
+  await renderInventario();
+  showToast('Recepción registrada · stock actualizado');
+}
+
+async function cerrarPedido(id){
+  showConfirm('Cerrar pedido','¿Cerrar este pedido manualmente? El material pendiente quedará sin recibir.',async()=>{
+    setLoading(true);
+    await dbUpdate('pedidos',id,{estado:'cerrado'});
+    setLoading(false);
+    await renderPedidos();
+    showToast('Pedido cerrado');
+  });
+}
+
+async function renderPedidos(){
+  const pedidos=(await dbGet('pedidos'));
+  const content=document.getElementById('ped-content');
+  const empty=document.getElementById('ped-empty');
+
+  const filter=_pedTab;
+  const filtered=pedidos.filter(p=>{
+    if(filter==='activos') return p.estado==='pendiente'||p.estado==='parcial';
+    if(filter==='cerrados') return p.estado==='cerrado'||p.estado==='completado';
+    return true;
+  }).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+
+  if(!filtered.length){ content.innerHTML=''; empty.style.display='flex'; return; }
+  empty.style.display='none';
+
+  const estadoBadge={
+    pendiente:'<span class="badge badge-alert">Pendiente</span>',
+    parcial:'<span class="badge badge-accent">Parcial</span>',
+    completado:'<span class="badge badge-ok">Completado</span>',
+    cerrado:'<span class="badge badge-neutral">Cerrado</span>',
+  };
+  const tipoLabel={caja:'Cajas',pale:'Palés',aux:'Auxiliares'};
+
+  content.innerHTML=filtered.map(p=>{
+    const isActive=p.estado==='pendiente'||p.estado==='parcial';
+    const lineasHtml=p.lineas.map(l=>{
+      const pendiente=l.cantidad-l.recibido;
+      return `<tr>
+        <td style="font-family:monospace;font-size:11px;color:var(--text2);">${l.articulo||'—'}</td>
+        <td>${l.nombre}</td>
+        <td style="text-align:right;font-weight:500;">${l.cantidad.toLocaleString('es-ES')} ${l.unit}</td>
+        <td style="text-align:right;color:${pendiente>0?'var(--alert)':'var(--success)'};">${pendiente>0?pendiente.toLocaleString('es-ES')+' '+l.unit:'✓'}</td>
+      </tr>`;
+    }).join('');
+
+    const recHtml=p.recepciones.length?`
+      <div style="padding:8px 18px;font-size:11px;color:var(--text3);">
+        Recepciones: ${p.recepciones.map(r=>`${r.fecha}${r.proveedor?' · '+r.proveedor:''} (${r.items.map(i=>i.cantidad+' '+i.unit).join(', ')})`).join(' | ')}
+      </div>`:'';
+
+    return `<div class="ped-card">
+      <div class="ped-card-head">
+        <div>
+          <span class="ped-num">${p.num}</span>
+          <span class="ped-fecha" style="margin-left:8px;">${p.fecha}</span>
+          ${p.fechaEst?`<span class="ped-fecha" style="margin-left:8px;">· Est. llegada: <strong style="color:var(--text2);">${p.fechaEst}</strong></span>`:''}
+        </div>
+        <span style="margin-left:8px;">${estadoBadge[p.estado]||''}</span>
+        <span class="badge badge-neutral" style="margin-left:4px;">${tipoLabel[p.tipo]||p.tipo}</span>
+        ${p.obs?`<span class="ped-obs-text" style="margin-left:8px;">${p.obs}</span>`:''}
+        <div class="ped-actions">
+          ${isActive?`<button class="btn btn-ghost btn-sm" onclick="openRecepcionModal('${p.id}')">Recepción</button>`:''}
+          <button class="btn btn-secondary btn-sm" onclick="exportPedidoPDF('${p.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            PDF
+          </button>
+          ${isActive?`<button class="btn btn-ghost btn-sm" onclick="cerrarPedido('${p.id}')">Cerrar</button>`:''}
+        </div>
+      </div>
+      <table class="ped-table">
+        <thead><tr><th>Artículo</th><th>Descripción</th><th style="text-align:right;">Pedido</th><th style="text-align:right;">Pendiente</th></tr></thead>
+        <tbody>${lineasHtml}</tbody>
+      </table>
+      ${recHtml}
+    </div>`;
+  }).join('');
+}
+
+// PDF EXPORT
+function exportPedidoPDF(pedidoId){
+  const pedido=(await dbGet('pedidos')).find(p=>p.id===pedidoId);
+  if(!pedido) return;
+
+  // build selectable lineas in a modal-like print page
+  const lineasRows=pedido.lineas.map((l,i)=>`
+    <tr>
+      <td style="padding:8px 0;border-bottom:1px solid #eee;">
+        <input type="checkbox" id="pdf-chk-${i}" checked style="margin-right:8px;" />
+      </td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;font-family:monospace;font-size:12px;color:#666;">${l.articulo||'—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;">${l.nombre}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:13px;text-align:right;font-weight:600;">${l.cantidad.toLocaleString('es-ES')} ${l.unit}</td>
+    </tr>`).join('');
+
+  // show selection dialog then print
+  showConfirm(
+    `Exportar ${pedido.num}`,
+    'Se abrirá la vista de impresión con todas las líneas del pedido. Puedes usar Guardar como PDF desde el diálogo de impresión.',
+    ()=>doPrint(pedido)
+  );
+  document.getElementById('confirm-ok').textContent='Imprimir / Guardar PDF';
+}
+
+function doPrint(pedido){
+  const tipoLabel={caja:'Cajas',pale:'Palés',aux:'Auxiliares'};
+  const lineasHtml=pedido.lineas.map(l=>`
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-family:monospace;font-size:12px;color:#6b7280;">${l.articulo||'—'}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;">${l.nombre}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:600;">${l.cantidad.toLocaleString('es-ES')} ${l.unit}</td>
+    </tr>`).join('');
+
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${pedido.num}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Segoe UI',system-ui,sans-serif;color:#111;background:#fff;padding:40px;}
+    .header{border-bottom:2px solid #111;padding-bottom:16px;margin-bottom:24px;}
+    .co-name{font-size:18px;font-weight:700;letter-spacing:.02em;}
+    .co-dept{font-size:12px;color:#6b7280;margin-top:2px;}
+    .doc-title{font-size:13px;font-weight:600;color:#1d4ed8;text-transform:uppercase;letter-spacing:.08em;margin-top:16px;}
+    .doc-num{font-size:28px;font-weight:700;margin-top:4px;}
+    .meta{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin:20px 0;padding:16px;background:#f9fafb;border-radius:6px;}
+    .meta-label{font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.08em;font-weight:500;}
+    .meta-val{font-size:13px;font-weight:500;margin-top:2px;}
+    table{width:100%;border-collapse:collapse;margin-top:16px;}
+    thead th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;font-weight:500;padding:10px 12px;background:#f3f4f6;border-bottom:2px solid #e5e7eb;}
+    thead th:last-child{text-align:right;}
+    .obs{margin-top:24px;padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:12px;color:#92400e;}
+    .footer{margin-top:40px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between;}
+  </style></head><body>
+  <div class="header">
+    <div class="co-name">Ceràmica Mayor</div>
+    <div class="co-dept">Departamento de Clasificación</div>
+    <div class="doc-title">Solicitud de pedido · ${tipoLabel[pedido.tipo]||pedido.tipo}</div>
+    <div class="doc-num">${pedido.num}</div>
+  </div>
+  <div class="meta">
+    <div><div class="meta-label">Fecha pedido</div><div class="meta-val">${pedido.fecha}</div></div>
+    <div><div class="meta-label">Llegada estimada</div><div class="meta-val">${pedido.fechaEst||'—'}</div></div>
+    <div><div class="meta-label">Estado</div><div class="meta-val">${pedido.estado}</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Artículo</th><th>Descripción</th><th style="text-align:right;">Cantidad</th></tr></thead>
+    <tbody>${lineasHtml}</tbody>
+  </table>
+  ${pedido.obs?`<div class="obs"><strong>Observaciones:</strong> ${pedido.obs}</div>`:''}
+  <div class="footer">
+    <span>PackFlow · Mayor Tools</span>
+    <span>Generado ${new Date().toLocaleString('es-ES')}</span>
+  </div>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+// ─────────────────────────────────────────
+// PLANIFICACIÓN / GANTT
+// ─────────────────────────────────────────
+const GANTT_COLORS = ['#58A6FF','#3FB950','#F0883E','#D2A8FF','#79C0FF','#56D364'];
+let _ganttStart = null; // Date (Monday of current week)
+
+function ganttMonday(d){
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = (day===0?-6:1-day);
+  dt.setDate(dt.getDate()+diff);
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function ganttToday(){
+  _ganttStart = ganttMonday(new Date());
+  renderGantt();
+}
+
+function shiftGantt(dir){
+  if(!_ganttStart) _ganttStart = ganttMonday(new Date());
+  const weeks = parseInt(document.getElementById('gantt-weeks').value)||4;
+  _ganttStart = new Date(_ganttStart);
+  _ganttStart.setDate(_ganttStart.getDate() + dir*weeks*7);
+  renderGantt();
+}
+
+async function openOrdenModal(id){
+  const refs = (await dbGet('refs'));
+  const sel = document.getElementById('orden-ref');
+  sel.innerHTML = '<option value="">Selecciona referencia...</option>' +
+    refs.map(r=>`<option value="${r.id}">${r.nombre}</option>`).join('');
+  document.getElementById('orden-calc').style.display='none';
+  document.getElementById('orden-delete-btn').style.display='none';
+
+  if(id){
+    const ordenes = (await dbGet('ordenes'));
+    const o = ordenes.find(x=>x.id===id);
+    if(!o) return;
+    document.getElementById('orden-edit-id').value=o.id;
+    sel.value=o.refId;
+    document.getElementById('orden-cantidad').value=o.cantidad;
+    document.getElementById('orden-inicio').value=o.inicio;
+    document.getElementById('modal-orden-title').textContent='Editar orden';
+    document.getElementById('orden-delete-btn').style.display='inline-flex';
+    calcOrdenFin();
+  } else {
+    document.getElementById('orden-edit-id').value='';
+    document.getElementById('orden-cantidad').value='';
+    const today = new Date().toISOString().slice(0,10);
+    document.getElementById('orden-inicio').value=today;
+    document.getElementById('modal-orden-title').textContent='Nueva orden de producción';
+    calcOrdenFin();
+  }
+  document.getElementById('modal-orden').classList.add('open');
+}
+
+function closeOrdenModal(){
+  document.getElementById('modal-orden').classList.remove('open');
+}
+document.getElementById('modal-orden').addEventListener('click',function(e){
+  if(e.target===this) closeOrdenModal();
+});
+
+function onOrdenRefChange(){ calcOrdenFin(); }
+
+async function calcOrdenFin(){
+  const refId = document.getElementById('orden-ref').value;
+  const cantidad = parseInt(document.getElementById('orden-cantidad').value);
+  const inicio = document.getElementById('orden-inicio').value;
+  const calcEl = document.getElementById('orden-calc');
+  const calcText = document.getElementById('orden-calc-text');
+
+  if(!refId||!cantidad||!inicio){ calcEl.style.display='none'; return; }
+  const ref = (await dbGet('refs')).find(r=>r.id===refId);
+  if(!ref||!ref.proddia){ calcEl.style.display='none'; return; }
+
+  const dias = Math.ceil(cantidad/ref.proddia);
+  const finDate = new Date(inicio);
+  finDate.setDate(finDate.getDate()+dias-1);
+
+  // calcular necesidades totales
+  const pales = (await dbGet('pales'));
+  const cajas = (await dbGet('cajas'));
+  const auxs  = (await dbGet('aux'));
+  const totalPales = ref.llevaCaja && ref.cajasPale>0 ? Math.ceil(cantidad/ref.cajasPale) : Math.ceil(cantidad/ref.proddia);
+
+  // pales reales = piezas / cajasPale si tiene caja, sino se indica por palé (simplificado)
+  const numPales = ref.llevaCaja && ref.cajasPale>0
+    ? Math.ceil(cantidad / ref.cajasPale)
+    : '—';
+  const numCajas = ref.llevaCaja && ref.cajasPale>0
+    ? Math.ceil(cantidad / ref.cajasPale) * ref.cajasPale
+    : '—';
+
+  const paleNombre = pales.find(p=>p.id===ref.paleId)?.nombre||'—';
+  const cajaNombre = ref.llevaCaja ? (cajas.find(c=>c.id===ref.cajaId)?.nombre||'—') : null;
+
+  let auxLines = (ref.auxiliares||[]).map(a=>{
+    const aux = auxs.find(x=>x.id===a.auxId);
+    return aux ? `· ${numPales!=='—'?numPales*a.qty:'—'} ${aux.unidad} de ${aux.nombre}` : '';
+  }).filter(Boolean);
+
+  calcText.innerHTML = [
+    `<strong>${dias} días de producción</strong> · fin estimado: ${finDate.toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'})}`,
+    `· ${typeof numPales==='number'?numPales.toLocaleString('es-ES'):numPales} palés ${paleNombre}`,
+    ref.llevaCaja ? `· ${typeof numCajas==='number'?numCajas.toLocaleString('es-ES'):numCajas} cajas ${cajaNombre}` : null,
+    ...auxLines
+  ].filter(Boolean).join('<br>');
+
+  calcEl.style.display='block';
+}
+
+async function saveOrden(){
+  const refId = document.getElementById('orden-ref').value;
+  if(!refId){ showToast('Selecciona una referencia','error'); return; }
+  const cantidad = parseInt(document.getElementById('orden-cantidad').value);
+  if(!cantidad||cantidad<1){ showToast('Introduce la cantidad a producir','error'); return; }
+  const inicio = document.getElementById('orden-inicio').value;
+  if(!inicio){ showToast('Introduce la fecha de inicio','error'); return; }
+
+  const ref = (await dbGet('refs')).find(r=>r.id===refId);
+  const dias = Math.ceil(cantidad/ref.proddia);
+  const finDate = new Date(inicio);
+  finDate.setDate(finDate.getDate()+dias-1);
+  const fin = finDate.toISOString().slice(0,10);
+
+  const id = document.getElementById('orden-edit-id').value;
+  setLoading(true);
+  if(id){
+    await dbUpdate('ordenes',id,{refId,cantidad,inicio,fin,dias});
+    showToast('Orden actualizada');
+  } else {
+    await dbInsert('ordenes',{id:uid(),refId,cantidad,inicio,fin,dias});
+    showToast('Orden añadida');
+  }
+  setLoading(false);
+  closeOrdenModal();
+  await renderGantt();
+}
+
+async function deleteOrdenFromModal(){
+  const id = document.getElementById('orden-edit-id').value;
+  if(!id) return;
+  const ordenes = await dbGet('ordenes');
+  const o = ordenes.find(x=>x.id===id);
+  const refs = await dbGet('refs');
+  showConfirm(`Eliminar orden "${o?refs.find(r=>r.id===o.refId)?.nombre:''}"`,
+    '¿Seguro que quieres eliminar esta orden de producción?',async()=>{
+    setLoading(true);
+    await dbDelete('ordenes',id);
+    setLoading(false);
+    closeOrdenModal();
+    await renderGantt();
+    showToast('Orden eliminada');
+  });
+}
+
+async function renderGantt(){
+  if(!_ganttStart) _ganttStart = ganttMonday(new Date());
+  const weeks = parseInt(document.getElementById('gantt-weeks')?.value)||4;
+  const totalDays = weeks*7;
+  const DAY_W = 32; // px por día
+
+  const ordenes = (await dbGet('ordenes'));
+  const refs    = (await dbGet('refs'));
+  const wrap    = document.getElementById('gantt-wrap');
+  const empty   = document.getElementById('plan-empty');
+
+  // range label
+  const endDate = new Date(_ganttStart);
+  endDate.setDate(endDate.getDate()+totalDays-1);
+  const rangeLabel = document.getElementById('gantt-range-label');
+  if(rangeLabel) rangeLabel.textContent =
+    _ganttStart.toLocaleDateString('es-ES',{day:'numeric',month:'short'}) + ' — ' +
+    endDate.toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'});
+
+  if(!ordenes.length){
+    wrap.parentElement.style.display='none';
+    empty.style.display='flex';
+    document.getElementById('plan-resumen').innerHTML='';
+    return;
+  }
+  wrap.parentElement.style.display='block';
+  empty.style.display='none';
+
+  // sort by start
+  const sorted = [...ordenes].sort((a,b)=>a.inicio.localeCompare(b.inicio));
+  const today = new Date(); today.setHours(0,0,0,0);
+  const DOW = ['D','L','M','X','J','V','S'];
+
+  // build days array
+  const days = [];
+  for(let i=0;i<totalDays;i++){
+    const d = new Date(_ganttStart);
+    d.setDate(d.getDate()+i);
+    days.push(d);
+  }
+
+  // header months row
+  let monthsHtml='';
+  let i=0;
+  while(i<days.length){
+    const m = days[i].getMonth();
+    let count=0;
+    while(i+count<days.length && days[i+count].getMonth()===m) count++;
+    const label = days[i].toLocaleDateString('es-ES',{month:'short',year:'numeric'});
+    monthsHtml+=`<div class="gantt-month-label" style="width:${count*DAY_W}px;min-width:${count*DAY_W}px;">${label}</div>`;
+    i+=count;
+  }
+
+  // header days row
+  const daysRowHtml = days.map(d=>{
+    const isToday = d.toDateString()===today.toDateString();
+    const isWknd  = d.getDay()===0||d.getDay()===6;
+    return `<div class="gantt-day-cell${isToday?' today':''}${isWknd?' weekend':''}" style="width:${DAY_W}px;min-width:${DAY_W}px;">
+      <span class="day-dow">${DOW[d.getDay()]}</span>
+      <span class="day-num">${d.getDate()}</span>
+    </div>`;
+  }).join('');
+
+  // rows
+  const rowsLabel = sorted.map((o,idx)=>{
+    const ref = refs.find(r=>r.id===o.refId);
+    const color = GANTT_COLORS[idx%GANTT_COLORS.length];
+    const isActive = o.inicio<=today.toISOString().slice(0,10) && o.fin>=today.toISOString().slice(0,10);
+    return `<div class="gantt-label-row">
+      <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;${isActive?'box-shadow:0 0 0 2px rgba(255,255,255,.15)':''}"></div>
+      <div>
+        <div class="gantt-ref-name">${ref?.nombre||'—'}</div>
+        <div class="gantt-ref-sub">${o.cantidad.toLocaleString('es-ES')} pzas · ${o.dias}d</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // today line position
+  const todayOffset = Math.round((today-_ganttStart)/(1000*60*60*24))*DAY_W;
+  const showTodayLine = todayOffset>=0 && todayOffset<=totalDays*DAY_W;
+
+  const rowsTimeline = sorted.map((o,idx)=>{
+    const color = GANTT_COLORS[idx%GANTT_COLORS.length];
+    const ref = refs.find(r=>r.id===o.refId);
+
+    const startDate = new Date(o.inicio+'T00:00:00');
+    const endDateO  = new Date(o.fin+'T00:00:00');
+    const startOff  = Math.round((startDate-_ganttStart)/(1000*60*60*24));
+    const endOff    = Math.round((endDateO-_ganttStart)/(1000*60*60*24));
+
+    const barLeft  = Math.max(0,startOff)*DAY_W;
+    const barRight = Math.min(totalDays-1,endOff)*DAY_W+DAY_W;
+    const barW     = barRight-barLeft;
+    const visible  = barW>0 && barLeft<totalDays*DAY_W && barRight>0;
+
+    const bgDays = days.map(d=>{
+      const isToday = d.toDateString()===today.toDateString();
+      const isWknd  = d.getDay()===0||d.getDay()===6;
+      return `<div class="gantt-row-day${isToday?' today':''}${isWknd?' weekend':''}" style="width:${DAY_W}px;min-width:${DAY_W}px;"></div>`;
+    }).join('');
+
+    return `<div class="gantt-row" style="width:${totalDays*DAY_W}px;">
+      <div class="gantt-row-bg">${bgDays}</div>
+      ${showTodayLine?`<div class="gantt-today-line" style="left:${todayOffset}px;"></div>`:''}
+      ${visible?`<div class="gantt-bar" style="left:${barLeft}px;width:${barW}px;background:${color}22;border:1px solid ${color}55;color:${color};" onclick="openOrdenModal('${o.id}')" title="${ref?.nombre||''} · ${o.inicio} → ${o.fin}">
+        ${barW>60?ref?.nombre||'':''}
+      </div>`:''}
+    </div>`;
+  }).join('');
+
+  const totalW = totalDays*DAY_W;
+  document.getElementById('gantt-inner').innerHTML = `
+    <div class="gantt-header">
+      <div class="gantt-label-col">
+        <div class="gantt-label-header">Referencia</div>
+        ${rowsLabel}
+      </div>
+      <div class="gantt-timeline" style="width:${totalW}px;min-width:${totalW}px;">
+        <div class="gantt-days-header" style="width:${totalW}px;">
+          <div class="gantt-months-row">${monthsHtml}</div>
+          <div class="gantt-days-row">${daysRowHtml}</div>
+        </div>
+        <div style="position:relative;">
+          ${rowsTimeline}
+        </div>
+      </div>
+    </div>`;
+
+  // scroll today into view
+  if(showTodayLine){
+    setTimeout(()=>{ wrap.scrollLeft = Math.max(0, todayOffset - wrap.clientWidth/2); },50);
+  }
+
+  renderPlanResumen(sorted, refs);
+}
+
+async function renderPlanResumen(ordenes, refs){
+  const pales = (await dbGet('pales'));
+  const cajas = (await dbGet('cajas'));
+  const auxs  = (await dbGet('aux'));
+  const conteos = (await dbGet('conteos'));
+
+  function stockOf(tipo, matId){
+    const last = [...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId)
+      .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    return last?last.cantidad:0;
+  }
+
+  // acumular necesidades totales de toda la planificación
+  const nec = {}; // key: tipo_matId → {tipo,matId,nombre,unit,necesario,stock}
+
+  ordenes.forEach(o=>{
+    const ref = refs.find(r=>r.id===o.refId);
+    if(!ref) return;
+    const numPales = ref.llevaCaja && ref.cajasPale>0
+      ? Math.ceil(o.cantidad/ref.cajasPale)
+      : null;
+
+    // palé de producto
+    if(ref.paleId){
+      const k='pale_'+ref.paleId;
+      if(!nec[k]){ const p=pales.find(x=>x.id===ref.paleId); nec[k]={tipo:'pale',matId:ref.paleId,nombre:p?.nombre||'—',unit:'ud',necesario:0,stock:stockOf('pale',ref.paleId)}; }
+      nec[k].necesario += numPales||Math.ceil(o.cantidad/ref.proddia);
+    }
+    // cajas
+    if(ref.llevaCaja && ref.cajaId && numPales){
+      const k='caja_'+ref.cajaId;
+      if(!nec[k]){ const c=cajas.find(x=>x.id===ref.cajaId); nec[k]={tipo:'caja',matId:ref.cajaId,nombre:c?.nombre||'—',unit:'ud',necesario:0,stock:stockOf('caja',ref.cajaId)}; }
+      nec[k].necesario += numPales*ref.cajasPale;
+    }
+    // auxiliares
+    (ref.auxiliares||[]).forEach(a=>{
+      if(!a.auxId||!numPales) return;
+      const k='aux_'+a.auxId;
+      if(!nec[k]){ const ax=auxs.find(x=>x.id===a.auxId); nec[k]={tipo:'aux',matId:a.auxId,nombre:ax?.nombre||'—',unit:ax?.unidad||'ud',necesario:0,stock:stockOf('aux',a.auxId)}; }
+      nec[k].necesario += numPales*a.qty;
+    });
+  });
+
+  const items = Object.values(nec);
+  if(!items.length){ document.getElementById('plan-resumen').innerHTML=''; return; }
+
+  const cardsHtml = items.map(n=>{
+    const diff = n.stock - n.necesario;
+    const ok = diff>=0;
+    return `<div class="nec-card${ok?'':' deficit'}">
+      <div class="nec-label">${n.tipo==='pale'?'Palé':n.tipo==='caja'?'Caja':'Auxiliar'}</div>
+      <div class="nec-name">${n.nombre}</div>
+      <div class="nec-row"><span>Necesario</span><span class="nec-val">${n.necesario.toLocaleString('es-ES')} ${n.unit}</span></div>
+      <div class="nec-row"><span>En stock</span><span class="nec-val">${n.stock.toLocaleString('es-ES')} ${n.unit}</span></div>
+      <div class="nec-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;">
+        <span>${ok?'Disponible':'Déficit'}</span>
+        <span class="nec-val ${ok?'ok':'deficit'}">${ok?'+':''}${diff.toLocaleString('es-ES')} ${n.unit}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('plan-resumen').innerHTML = `
+    <div style="font-size:12px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Necesidades totales · planificación completa</div>
+    <div class="nec-grid">${cardsHtml}</div>`;
+}
+
+// ─────────────────────────────────────────
+// MOBILE INVENTORY
+// ─────────────────────────────────────────
+let _mobCat = null;
+let _mobMatId = null;
+let _mobMatNombre = null;
+let _mobMatUnit = null;
+let _mobMatTipo = null;
+let _mobAllItems = [];
+
+function isMobile(){ return window.innerWidth < 768; }
+
+async function initInvView(){
+  const mobile = isMobile();
+  document.getElementById('inv-desktop').style.display = mobile ? 'none' : 'block';
+  document.getElementById('inv-mobile').style.display  = mobile ? 'block' : 'none';
+  if(mobile) renderMobCatScreen();
+  else renderInventario();
+}
+
+async function renderMobCatScreen(){
+  // update counts per category
+  const conteos = (await dbGet('conteos'));
+  function latestStock(tipo, matId){
+    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    return last?last.cantidad:null;
+  }
+  const pales = (await dbGet('pales'));
+  const cajas = (await dbGet('cajas'));
+  const auxs  = (await dbGet('aux'));
+
+  const totalPales = pales.reduce((s,p)=>{ const v=latestStock('pale',p.id); return s+(v!==null?v:0); },0);
+  const totalCajas = cajas.reduce((s,c)=>{ const v=latestStock('caja',c.id); return s+(v!==null?v:0); },0);
+  const totalAux   = auxs.reduce((s,a)=>{ const v=latestStock('aux',a.id); return s+(v!==null?v:0); },0);
+
+  document.getElementById('mob-count-pale').textContent = `Stock total: ${totalPales.toLocaleString('es-ES')} ud`;
+  document.getElementById('mob-count-caja').textContent = `Stock total: ${totalCajas.toLocaleString('es-ES')} ud`;
+  document.getElementById('mob-count-aux').textContent  = `${auxs.length} tipo${auxs.length!==1?'s':''} · ${totalAux.toLocaleString('es-ES')} uds`;
+
+  mobShowStep('cat');
+}
+
+async function mobSelectCat(tipo){
+  _mobCat = tipo;
+  const titles = { pale:'Palés', caja:'Cajas', aux:'Material auxiliar' };
+  document.getElementById('mob-list-title').textContent = titles[tipo]||tipo;
+  document.getElementById('mob-search').value='';
+
+  // build items list
+  const conteos = (await dbGet('conteos'));
+  function latestConteo(matId){
+    return [...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0]||null;
+  }
+
+  let items=[];
+  if(tipo==='pale') items=(await dbGet('pales')).map(p=>({id:p.id,nombre:p.nombre+(p.dims?' · '+p.dims:''),unit:'ud'}));
+  if(tipo==='caja') items=(await dbGet('cajas')).map(c=>({id:c.id,nombre:c.nombre,unit:'ud'}));
+  if(tipo==='aux')  items=(await dbGet('aux')).map(a=>({id:a.id,nombre:a.nombre,unit:a.unidad}));
+
+  _mobAllItems = items.map(i=>{
+    const last=latestConteo(i.id);
+    return {...i, stock:last?last.cantidad:null, fecha:last?last.fecha:null};
+  });
+
+  renderMobList(_mobAllItems);
+  mobShowStep('list');
+}
+
+function renderMobList(items){
+  const el = document.getElementById('mob-list-items');
+  if(!items.length){
+    el.innerHTML=`<div class="empty-state" style="min-height:200px;">
+      <div class="empty-state-title">Sin materiales</div>
+      <div class="empty-state-sub">Configura primero los tipos en el menú de configuración.</div>
+    </div>`; return;
+  }
+  el.innerHTML = items.map(item=>`
+    <div class="mob-material-item" onclick="mobSelectMaterial('${item.id}','${item.nombre.replace(/'/g,"\\'")}','${item.unit}')">
+      <div>
+        <div class="mob-material-name">${item.nombre}</div>
+        ${item.fecha?`<div class="mob-material-date">${fmtDate(item.fecha)}</div>`:'<div class="mob-material-date" style="color:var(--text3);">Sin conteo</div>'}
+      </div>
+      <div style="text-align:right;">
+        <div class="mob-material-stock">${item.stock!==null?item.stock.toLocaleString('es-ES'):'—'}</div>
+        <div class="mob-material-unit">${item.unit}</div>
+      </div>
+    </div>`).join('');
+}
+
+function mobFilterList(){
+  const q = document.getElementById('mob-search').value.toLowerCase().trim();
+  const filtered = q ? _mobAllItems.filter(i=>i.nombre.toLowerCase().includes(q)) : _mobAllItems;
+  renderMobList(filtered);
+}
+
+async function mobSelectMaterial(id, nombre, unit){
+  _mobMatId = id;
+  _mobMatNombre = nombre;
+  _mobMatUnit = unit;
+  _mobMatTipo = _mobCat;
+
+  document.getElementById('mob-count-name').textContent = nombre;
+  document.getElementById('mob-qty-unit').textContent = unit;
+  document.getElementById('mob-saved-feedback').style.display='none';
+
+  // show previous stock
+  const conteos = (await dbGet('conteos'));
+  const last=[...conteos].filter(c=>c.tipo===_mobCat&&c.materialId===id).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+  if(last){
+    document.getElementById('mob-prev-stock').textContent=last.cantidad.toLocaleString('es-ES')+' '+unit;
+    document.getElementById('mob-prev-date').textContent=fmtDate(last.fecha);
+  } else {
+    document.getElementById('mob-prev-stock').textContent='Sin datos';
+    document.getElementById('mob-prev-date').textContent='';
+  }
+
+  const input = document.getElementById('mob-qty-input');
+  input.value = last?last.cantidad:'';
+  mobShowStep('count');
+  setTimeout(()=>{ input.focus(); input.select(); },200);
+}
+
+async function mobSaveCount(){
+  const qty = parseFloat(document.getElementById('mob-qty-input').value);
+  if(isNaN(qty)||qty<0){ showToast('Introduce una cantidad válida','error'); return; }
+
+  await dbInsert('conteos',{id:uid(),tipo:_mobMatTipo,materialId:_mobMatId,nombre:_mobMatNombre,cantidad:qty,unit:_mobMatUnit,fecha:new Date().toISOString()});
+  delete _cache['conteos'];
+
+  // feedback visual
+  document.getElementById('mob-saved-feedback').style.display='block';
+  document.getElementById('mob-qty-input').blur();
+
+  // update the item in list
+  const idx = _mobAllItems.findIndex(i=>i.id===_mobMatId);
+  if(idx>-1){ _mobAllItems[idx].stock=qty; _mobAllItems[idx].fecha=new Date().toISOString(); }
+
+  setTimeout(()=>{
+    document.getElementById('mob-saved-feedback').style.display='none';
+    mobBack('list');
+  },900);
+}
+
+function mobShowStep(step){
+  document.getElementById('mob-step-cat').style.display   = step==='cat'  ?'block':'none';
+  document.getElementById('mob-step-list').style.display  = step==='list' ?'block':'none';
+  document.getElementById('mob-step-count').style.display = step==='count'?'block':'none';
+}
+
+function mobBack(to){
+  if(to==='cat')  { mobShowStep('cat'); }
+  if(to==='list') { renderMobList(_mobAllItems); mobShowStep('list'); }
+}
+
+// ─────────────────────────────────────────
+// INVENTARIO
+// ─────────────────────────────────────────
+let _invTab = 'todos';
+
+function setInvTab(tab){
+  _invTab = tab;
+  document.querySelectorAll('.section-tab[data-inv-tab]').forEach(t=>{
+    t.classList.toggle('active', t.dataset.invTab===tab);
+  });
+  renderInventario();
+}
+
+async function openInvModal(){
+  document.getElementById('inv-tipo').value='';
+  document.getElementById('inv-material').innerHTML='<option value="">Selecciona...</option>';
+  document.getElementById('inv-cantidad').value='';
+  document.getElementById('inv-material-group').style.display='none';
+  document.getElementById('inv-cantidad-group').style.display='none';
+  document.getElementById('inv-fecha-group').style.display='none';
+  // default datetime
+  const now = new Date();
+  now.setMinutes(now.getMinutes()-now.getTimezoneOffset());
+  document.getElementById('inv-fecha').value = now.toISOString().slice(0,16);
+  document.getElementById('modal-inv').classList.add('open');
+}
+
+function closeInvModal(){
+  document.getElementById('modal-inv').classList.remove('open');
+}
+document.getElementById('modal-inv').addEventListener('click',function(e){
+  if(e.target===this) closeInvModal();
+});
+
+async function onInvTipoChange(){
+  const tipo = document.getElementById('inv-tipo').value;
+  const matGroup = document.getElementById('inv-material-group');
+  const cantGroup = document.getElementById('inv-cantidad-group');
+  const fechaGroup = document.getElementById('inv-fecha-group');
+  const matSel = document.getElementById('inv-material');
+
+  if(!tipo){ matGroup.style.display='none'; cantGroup.style.display='none'; fechaGroup.style.display='none'; return; }
+
+  let items = [];
+  if(tipo==='caja')  items = (await dbGet('cajas')).map(c=>({id:c.id, label:c.nombre, unit:'ud'}));
+  if(tipo==='pale')  items = (await dbGet('pales')).map(p=>({id:p.id, label:p.nombre+(p.dims?' · '+p.dims:''), unit:'ud'}));
+  if(tipo==='aux')   items = (await dbGet('aux')).map(a=>({id:a.id, label:a.nombre, unit:a.unidad}));
+
+  matSel.innerHTML = '<option value="">Selecciona...</option>' +
+    items.map(i=>`<option value="${i.id}" data-unit="${i.unit}">${i.label}</option>`).join('');
+
+  matGroup.style.display='block';
+  cantGroup.style.display='none';
+  fechaGroup.style.display='none';
+
+  matSel.onchange = function(){
+    if(!this.value){ cantGroup.style.display='none'; fechaGroup.style.display='none'; return; }
+    const unit = this.options[this.selectedIndex].dataset.unit||'ud';
+    document.getElementById('inv-cantidad-hint').textContent = `Unidad: ${unit}`;
+    document.getElementById('inv-cantidad').placeholder = `Cantidad en ${unit}`;
+    cantGroup.style.display='block';
+    fechaGroup.style.display='block';
+    document.getElementById('inv-cantidad').focus();
+  };
+}
+
+async function saveConteo(){
+  const tipo = document.getElementById('inv-tipo').value;
+  if(!tipo){ showToast('Selecciona el tipo de material','error'); return; }
+  const materialId = document.getElementById('inv-material').value;
+  if(!materialId){ showToast('Selecciona el material','error'); return; }
+  const cantidad = parseFloat(document.getElementById('inv-cantidad').value);
+  if(isNaN(cantidad)||cantidad<0){ showToast('Introduce una cantidad válida','error'); return; }
+  const fechaVal = document.getElementById('inv-fecha').value;
+  const fecha = fechaVal ? new Date(fechaVal).toISOString() : new Date().toISOString();
+
+  let nombre='', unit='ud';
+  if(tipo==='caja'){ const c=(await dbGet('cajas')).find(x=>x.id===materialId); nombre=c?.nombre||''; }
+  if(tipo==='pale'){ const p=(await dbGet('pales')).find(x=>x.id===materialId); nombre=p?.nombre||''; }
+  if(tipo==='aux'){  const a=(await dbGet('aux')).find(x=>x.id===materialId); nombre=a?.nombre||''; unit=a?.unidad||'ud'; }
+
+  setLoading(true);
+  await dbInsert('conteos',{id:uid(),tipo,materialId,nombre,cantidad,unit,fecha});
+  setLoading(false);
+  closeInvModal();
+  await renderInventario();
+  showToast('Conteo registrado');
+}
+
+async function renderInventario(){
+  const conteos = (await dbGet('conteos'));
+  const content = document.getElementById('inv-content');
+  const empty   = document.getElementById('inv-empty');
+
+  if(!conteos.length){ content.innerHTML=''; empty.style.display='flex'; return; }
+  empty.style.display='none';
+
+  // group by tipo+materialId, keep last 3 per material
+  const grouped = {};
+  [...conteos].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).forEach(c=>{
+    const key = c.tipo+'_'+c.materialId;
+    if(!grouped[key]) grouped[key]=[];
+    if(grouped[key].length<3) grouped[key].push(c);
+  });
+
+  // filter by tab
+  const tipoMap = {cajas:'caja', pales:'pale', aux:'aux'};
+  const filterTipo = tipoMap[_invTab];
+
+  const keys = Object.keys(grouped).filter(k=> _invTab==='todos' || k.startsWith(filterTipo+'_'));
+
+  if(!keys.length){ content.innerHTML=''; empty.style.display='flex'; return; }
+  empty.style.display='none';
+
+  // group by tipo for display
+  const sections = { caja:{label:'Cajas',keys:[]}, pale:{label:'Palés',keys:[]}, aux:{label:'Materiales auxiliares',keys:[]} };
+  keys.forEach(k=>{ const tipo=k.split('_')[0]; if(sections[tipo]) sections[tipo].keys.push(k); });
+
+  let html='';
+  Object.entries(sections).forEach(([tipo,sec])=>{
+    if(!sec.keys.length) return;
+    if(_invTab==='todos') html+=`<div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 10px;">${sec.label}</div>`;
+    sec.keys.forEach(key=>{
+      const rows = grouped[key];
+      const latest = rows[0];
+      const prev = rows.slice(1);
+      html+=`
+      <div class="inv-item" style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);margin-bottom:10px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;">
+          <div>
+            <div style="font-size:14px;font-weight:500;color:var(--text);">${latest.nombre}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px;">${fmtDate(latest.fecha)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:22px;font-weight:600;color:var(--accent);">${latest.cantidad.toLocaleString('es-ES')}</div>
+            <div style="font-size:11px;color:var(--text2);">${latest.unit}</div>
+          </div>
+        </div>
+        ${prev.length?`
+        <div style="border-top:1px solid var(--border);padding:10px 18px;display:flex;gap:20px;">
+          <span style="font-size:11px;color:var(--text3);margin-right:4px;">Anteriores:</span>
+          ${prev.map(p=>`<span style="font-size:12px;color:var(--text2);">${p.cantidad.toLocaleString('es-ES')} ${p.unit} <span style="color:var(--text3);font-size:11px;">${fmtDate(p.fecha)}</span></span>`).join('<span style="color:var(--text3);">·</span>')}
+        </div>`:''}
+      </div>`;
+    });
+  });
+
+  content.innerHTML=html;
+}
+
+function fmtDate(iso){
+  return new Date(iso).toLocaleString('es-ES',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+}
+
+// ─────────────────────────────────────────
+// REFERENCIAS CRUD
+// ─────────────────────────────────────────
+async function openRefModal(id){
+  // populate selects
+  const pales = (await dbGet('pales'));
+  const cajas = (await dbGet('cajas'));
+  const auxs  = (await dbGet('aux'));
+
+  const palesSel = document.getElementById('ref-pale');
+  palesSel.innerHTML = '<option value="">Selecciona un tipo de palé...</option>' +
+    pales.map(p=>`<option value="${p.id}">${p.nombre}${p.dims?' · '+p.dims:''}</option>`).join('');
+
+  const cajasSel = document.getElementById('ref-caja');
+  cajasSel.innerHTML = '<option value="">Selecciona un tipo de caja...</option>' +
+    cajas.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+
+  // store available aux for line selects
+  window._refAuxOptions = auxs;
+
+  if(id){
+    const refs = (await dbGet('refs'));
+    const r = refs.find(x=>x.id===id);
+    if(!r) return;
+    document.getElementById('ref-edit-id').value = r.id;
+    document.getElementById('ref-nombre').value = r.nombre;
+    document.getElementById('ref-articulo').value = r.articulo||'';
+    document.getElementById('ref-proddia').value = r.proddia||'';
+    document.getElementById('ref-lleva-caja').value = r.llevaCaja?'si':'no';
+    palesSel.value = r.paleId||'';
+    cajasSel.value = r.cajaId||'';
+    document.getElementById('ref-cajas-pale').value = r.cajasPale||'';
+    toggleCajaField();
+    document.getElementById('ref-aux-lines').innerHTML='';
+    (r.auxiliares||[]).forEach(a=>addAuxLine(a));
+    document.getElementById('modal-ref-title').textContent='Editar referencia';
+  } else {
+    resetRefModal();
+    document.getElementById('modal-ref-title').textContent='Nueva referencia';
+  }
+  document.getElementById('modal-ref').classList.add('open');
+}
+
+function closeRefModal(){
+  document.getElementById('modal-ref').classList.remove('open');
+  resetRefModal();
+}
+
+function resetRefModal(){
+  document.getElementById('ref-edit-id').value='';
+  document.getElementById('ref-nombre').value='';
+  document.getElementById('ref-articulo').value='';
+  document.getElementById('ref-proddia').value='';
+  document.getElementById('ref-lleva-caja').value='si';
+  document.getElementById('ref-pale').value='';
+  document.getElementById('ref-caja').value='';
+  document.getElementById('ref-cajas-pale').value='';
+  document.getElementById('ref-aux-lines').innerHTML='';
+  toggleCajaField();
+}
+
+document.getElementById('modal-ref').addEventListener('click',function(e){
+  if(e.target===this) closeRefModal();
+});
+
+function toggleCajaField(){
+  const val = document.getElementById('ref-lleva-caja').value;
+  document.getElementById('ref-caja-section').style.display = val==='si'?'block':'none';
+}
+
+async function addAuxLine(data){
+  const auxs = window._refAuxOptions || (await dbGet('aux'));
+  if(!auxs.length) return;
+  const lineId = uid();
+  const div = document.createElement('div');
+  div.className='aux-line';
+  div.id='aux-line-'+lineId;
+  div.innerHTML=`
+    <select class="form-select" id="aux-sel-${lineId}">
+      <option value="">Selecciona material...</option>
+      ${auxs.map(a=>`<option value="${a.id}" ${data&&data.auxId===a.id?'selected':''}>${a.nombre} (${a.unidad})</option>`).join('')}
+    </select>
+    <input type="number" class="form-input" id="aux-qty-${lineId}" placeholder="Cantidad" min="1" value="${data&&data.qty?data.qty:''}"/>
+    <button class="aux-line-remove" onclick="document.getElementById('aux-line-${lineId}').remove()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>`;
+  document.getElementById('ref-aux-lines').appendChild(div);
+}
+
+async function saveRef(){
+  const nombre = document.getElementById('ref-nombre').value.trim();
+  if(!nombre){ showToast('El nombre es obligatorio','error'); return; }
+  const proddia = parseInt(document.getElementById('ref-proddia').value);
+  if(!proddia||proddia<1){ showToast('La producción diaria es obligatoria','error'); return; }
+  const paleId = document.getElementById('ref-pale').value;
+  if(!paleId){ showToast('Selecciona un tipo de palé','error'); return; }
+  const llevaCaja = document.getElementById('ref-lleva-caja').value==='si';
+  let cajaId='', cajasPale=0;
+  if(llevaCaja){
+    cajaId = document.getElementById('ref-caja').value;
+    if(!cajaId){ showToast('Selecciona un tipo de caja','error'); return; }
+    cajasPale = parseInt(document.getElementById('ref-cajas-pale').value);
+    if(!cajasPale||cajasPale<1){ showToast('Indica cuántas cajas caben en el palé','error'); return; }
+  }
+
+  const auxLines = [];
+  document.querySelectorAll('#ref-aux-lines .aux-line').forEach(line=>{
+    const lineId = line.id.replace('aux-line-','');
+    const auxId = document.getElementById('aux-sel-'+lineId)?.value;
+    const qty   = parseInt(document.getElementById('aux-qty-'+lineId)?.value);
+    if(auxId && qty>0) auxLines.push({auxId, qty});
+  });
+
+  const id = document.getElementById('ref-edit-id').value;
+  const articulo = document.getElementById('ref-articulo').value.trim();
+  const row = {nombre,articulo,proddia,llevaCaja,paleId,cajaId,cajasPale,auxiliares:auxLines};
+
+  setLoading(true);
+  if(id){
+    await dbUpdate('refs',id,row);
+    showToast('Referencia actualizada');
+  } else {
+    await dbInsert('refs',{id:uid(),...row});
+    showToast('Referencia añadida');
+  }
+  setLoading(false);
+  closeRefModal();
+  await renderRefs();
+}
+
+async function editRef(id){ openRefModal(id); }
+
+async function deleteRef(id){
+  const refs = await dbGet('refs');
+  const r = refs.find(x=>x.id===id);
+  showConfirm(`Eliminar "${r?.nombre}"`,`¿Seguro que quieres eliminar esta referencia?`,async()=>{
+    setLoading(true);
+    await dbDelete('refs',id);
+    setLoading(false);
+    await renderRefs();
+    showToast('Referencia eliminada');
+  });
+}
+
+async function renderRefs(){
+  const refs  = (await dbGet('refs'));
+  const pales = (await dbGet('pales'));
+  const cajas = (await dbGet('cajas'));
+  const auxs  = (await dbGet('aux'));
+  const tbody = document.getElementById('ref-tbody');
+  const empty = document.getElementById('ref-empty');
+  const wrap  = document.getElementById('ref-table-wrap');
+
+  if(!refs.length){ wrap.style.display='none'; empty.style.display='flex'; return; }
+  wrap.style.display='block'; empty.style.display='none';
+
+  tbody.innerHTML = refs.map(r=>{
+    const pale = pales.find(p=>p.id===r.paleId);
+    const caja = cajas.find(c=>c.id===r.cajaId);
+
+    // receta pills
+    const pills = [];
+    if(r.llevaCaja && caja) pills.push(`${r.cajasPale} × ${caja.nombre}`);
+    (r.auxiliares||[]).forEach(a=>{
+      const aux = auxs.find(x=>x.id===a.auxId);
+      if(aux) pills.push(`${a.qty} ${aux.unidad} ${aux.nombre}`);
+    });
+
+    return `<tr>
+      <td><strong>${r.nombre}</strong>${r.articulo?`<div class="td-muted" style="font-size:11px;margin-top:2px;">art. ${r.articulo}</div>`:''}</td>
+      <td class="td-muted">${pale?pale.nombre:'<span style="color:var(--alert);font-size:11px;">Sin asignar</span>'}</td>
+      <td>${r.llevaCaja
+        ? (caja?`<span class="badge badge-accent">${caja.nombre}</span>`:'<span style="color:var(--alert);font-size:11px;">Sin asignar</span>')
+        : '<span class="badge badge-neutral">Sin caja</span>'}</td>
+      <td class="td-muted">${r.proddia.toLocaleString('es-ES')} pzas/día</td>
+      <td><div class="receta-pills">${pills.map(p=>`<span class="receta-pill">${p}</span>`).join('')||'<span style="color:var(--text3);font-size:11px;">Solo palé</span>'}</div></td>
+      <td><div class="td-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editRef('${r.id}')">Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRef('${r.id}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+window.addEventListener('resize', ()=>{
+  const page = document.querySelector('.page.active');
+  if(page&&page.id==='page-inventario') initInvView();
+});
+
+async function init(){
+  navigate('dashboard');
+  await Promise.all([
+    renderCajas(),
+    renderPales(),
+    renderAux(),
+    renderRefs(),
+    renderGantt(),
+    renderPedidos(),
+    renderConsumo(),
+    initInvView(),
+  ]);
+  await renderDashboard();
+}
+
+init();
+</script>
+</body>
+</html>
