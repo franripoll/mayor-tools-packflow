@@ -3578,7 +3578,7 @@ async function saveRef(){
 
   const id = document.getElementById('ref-edit-id').value;
   const articulo = document.getElementById('ref-articulo').value.trim();
-  const row = {nombre,articulo,proddia,llevaCaja,paleId,cajaId,cajasPale,piezasCaja,piezasPale,auxiliares:auxLines};
+  const row = {nombre,articulo,proddia,llevaCaja,paleId:paleId||null,cajaId:cajaId||null,cajasPale,piezasCaja,piezasPale,auxiliares:auxLines};
 
   setLoading(true);
   if(id){
