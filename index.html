@@ -2731,6 +2731,88 @@ async function renderGantt(){
     days.push(d);
   }
 
+  // ── CALCULAR AGOTAMIENTO DE STOCK ──
+  const conteos  = await dbGet('conteos');
+  const pales    = await dbGet('pales');
+  const cajas    = await dbGet('cajas');
+  const auxs     = await dbGet('aux');
+
+  function stockOf(tipo, matId){
+    const last = [...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId)
+      .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    return last?last.cantidad:0;
+  }
+
+  // Para cada material usado en órdenes activas/futuras,
+  // calcular el consumo diario acumulado y el día que se agota
+  // consumo diario de un material = (material por palé) * (palés/día de esa ref)
+  // palés/día = proddia / piezasCaja / cajasPale
+
+  const materialConsumo = {}; // matKey → {tipo, matId, nombre, stockActual, consumoDiario}
+
+  sorted.forEach(o=>{
+    const ref = refs.find(r=>r.id===o.refId);
+    if(!ref) return;
+    const inicioDate = new Date(o.inicio+'T00:00:00');
+    const finDate    = new Date(o.fin+'T00:00:00');
+
+    // palés por día de esta orden
+    const palesPorDia = ref.piezasCaja>0 && ref.cajasPale>0
+      ? ref.proddia / ref.piezasCaja / ref.cajasPale
+      : ref.proddia / (ref.cajasPale||1);
+
+    // solo consideramos órdenes activas o futuras
+    if(finDate < today) return;
+
+    const addConsumo = (tipo, matId, nombre, cantPorPale) => {
+      const k = tipo+'_'+matId;
+      if(!materialConsumo[k]){
+        materialConsumo[k] = {
+          tipo, matId, nombre,
+          stockActual: stockOf(tipo, matId),
+          // consumo por día indexado por fecha ISO
+          consumoPorDia: {}
+        };
+      }
+      // add daily consumption for each day of this order
+      let d = new Date(Math.max(inicioDate, today));
+      while(d <= finDate){
+        const iso = d.toISOString().slice(0,10);
+        materialConsumo[k].consumoPorDia[iso] =
+          (materialConsumo[k].consumoPorDia[iso]||0) + palesPorDia * cantPorPale;
+        d = new Date(d); d.setDate(d.getDate()+1);
+      }
+    };
+
+    if(ref.paleId) addConsumo('pale', ref.paleId, pales.find(p=>p.id===ref.paleId)?.nombre||'palé', 1);
+    if(ref.llevaCaja && ref.cajaId && ref.piezasCaja>0){
+      addConsumo('caja', ref.cajaId, cajas.find(c=>c.id===ref.cajaId)?.nombre||'caja', ref.cajasPale);
+    }
+    (ref.auxiliares||[]).forEach(a=>{
+      const ax = auxs.find(x=>x.id===a.auxId);
+      if(ax) addConsumo('aux', a.auxId, ax.nombre, a.qty);
+    });
+  });
+
+  // Para cada material, encontrar el día de agotamiento
+  const agotamientos = []; // {offset, nombre, tipo}
+  Object.values(materialConsumo).forEach(m=>{
+    let stockRestante = m.stockActual;
+    const diasOrdenados = Object.keys(m.consumoPorDia).sort();
+    let agotado = false;
+    for(const iso of diasOrdenados){
+      stockRestante -= m.consumoPorDia[iso];
+      if(stockRestante <= 0 && !agotado){
+        agotado = true;
+        const dDate = new Date(iso+'T00:00:00');
+        const offset = Math.round((dDate - _ganttStart)/(1000*60*60*24));
+        if(offset >= 0 && offset < totalDays){
+          agotamientos.push({offset, nombre: m.nombre, tipo: m.tipo, fecha: iso});
+        }
+      }
+    }
+  });
+
   // header months row
   let monthsHtml='';
   let i=0;
@@ -2770,6 +2852,18 @@ async function renderGantt(){
   // today line position
   const todayOffset = Math.round((today-_ganttStart)/(1000*60*60*24))*DAY_W;
   const showTodayLine = todayOffset>=0 && todayOffset<=totalDays*DAY_W;
+
+  // agotamiento lines HTML — one overlay div for all rows height
+  const totalRowsH = sorted.length * 44;
+  const agotamientoLinesHtml = agotamientos.map(ag=>{
+    const left = ag.offset * DAY_W;
+    const shortName = ag.nombre.length>18 ? ag.nombre.slice(0,16)+'…' : ag.nombre;
+    return `<div style="position:absolute;left:${left}px;top:0;bottom:0;width:1px;background:var(--alert);opacity:.8;z-index:3;pointer-events:none;">
+      <div style="position:absolute;top:2px;left:3px;background:var(--alert);color:#0F1117;font-size:9px;font-weight:600;padding:2px 5px;border-radius:3px;white-space:nowrap;line-height:1.3;">
+        ${shortName}
+      </div>
+    </div>`;
+  }).join('');
 
   const rowsTimeline = sorted.map((o,idx)=>{
     const color = GANTT_COLORS[idx%GANTT_COLORS.length];
@@ -2813,6 +2907,7 @@ async function renderGantt(){
           <div class="gantt-days-row">${daysRowHtml}</div>
         </div>
         <div style="position:relative;">
+          ${agotamientoLinesHtml}
           ${rowsTimeline}
         </div>
       </div>
@@ -2875,14 +2970,58 @@ async function renderPlanResumen(ordenes, refs){
   const items = Object.values(nec);
   if(!items.length){ document.getElementById('plan-resumen').innerHTML=''; return; }
 
+  // Calcular días hasta agotamiento para cada material
+  // consumo diario = necesario_total / días_totales_planificación
+  // pero más preciso: stock / consumo_diario_promedio activo
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  function diasHastaAgotamiento(n){
+    if(n.stock <= 0) return 0;
+    // Calcular consumo diario total de este material sumando todas las órdenes activas
+    let consumoDiarioTotal = 0;
+    ordenes.forEach(o=>{
+      const ref = refs.find(r=>r.id===o.refId);
+      if(!ref) return;
+      const finDate = new Date(o.fin+'T00:00:00');
+      if(finDate < today) return; // orden ya terminada
+      const inicioDate = new Date(o.inicio+'T00:00:00');
+      const efectivoDesde = inicioDate > today ? inicioDate : today;
+      if(efectivoDesde > finDate) return;
+
+      const palesPorDia = ref.piezasCaja>0 && ref.cajasPale>0
+        ? ref.proddia / ref.piezasCaja / ref.cajasPale
+        : ref.proddia / (ref.cajasPale||1);
+
+      const k = n.tipo+'_'+n.matId;
+      if(n.tipo==='pale' && ref.paleId===n.matId) consumoDiarioTotal += palesPorDia * 1;
+      if(n.tipo==='caja' && ref.cajaId===n.matId) consumoDiarioTotal += palesPorDia * (ref.cajasPale||0);
+      if(n.tipo==='aux'){
+        const a = (ref.auxiliares||[]).find(x=>x.auxId===n.matId);
+        if(a) consumoDiarioTotal += palesPorDia * a.qty;
+      }
+    });
+    if(consumoDiarioTotal <= 0) return null; // no hay consumo activo
+    return Math.floor(n.stock / consumoDiarioTotal);
+  }
+
   const cardsHtml = items.map(n=>{
     const diff = n.stock - n.necesario;
     const ok = diff>=0;
+    const dias = diasHastaAgotamiento(n);
+    const diasHtml = dias !== null ? `
+      <div class="nec-row" style="margin-top:2px;">
+        <span>Se acaba en</span>
+        <span class="nec-val ${dias<=3?'deficit':dias<=7?'':''}" style="${dias<=3?'color:var(--alert)':dias<=7?'color:var(--alert-dim);filter:brightness(1.5)':'color:var(--text2)'}">
+          ${dias===0?'¡Hoy!':dias===1?'1 día':`${dias} días`}
+        </span>
+      </div>` : '';
+
     return `<div class="nec-card${ok?'':' deficit'}">
       <div class="nec-label">${n.tipo==='pale'?'Palé':n.tipo==='caja'?'Caja':'Auxiliar'}</div>
       <div class="nec-name">${n.nombre}</div>
       <div class="nec-row"><span>Necesario</span><span class="nec-val">${n.necesario.toLocaleString('es-ES')} ${n.unit}</span></div>
       <div class="nec-row"><span>En stock</span><span class="nec-val">${n.stock.toLocaleString('es-ES')} ${n.unit}</span></div>
+      ${diasHtml}
       <div class="nec-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;">
         <span>${ok?'Disponible':'Déficit'}</span>
         <span class="nec-val ${ok?'ok':'deficit'}">${ok?'+':''}${diff.toLocaleString('es-ES')} ${n.unit}</span>
