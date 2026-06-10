@@ -2912,21 +2912,32 @@ async function renderGantt(){
   });
 
   // Para cada material, encontrar el día de agotamiento
+  // Simulación día a día DESDE HOY, consumiendo solo en días con producción activa
   const AGOT_COLORS = ['#F0883E','#D2A8FF','#79C0FF','#56D364','#FF7B72','#FFA657','#A5D6FF','#7EE787'];
-  const agotamientos = []; // {offset, nombre, tipo, fecha, color}
+  const agotamientos = [];
   Object.values(materialConsumo).forEach((m,idx)=>{
+    if(m.stockActual <= 0){
+      // ya sin stock — buscar primer día con consumo
+      const primero = Object.keys(m.consumoPorDia).sort().find(iso=>iso>=today.toISOString().slice(0,10));
+      if(primero){
+        const offset = Math.round((new Date(primero+'T00:00:00')-_ganttStart)/(1000*60*60*24));
+        if(offset>=0&&offset<totalDays)
+          agotamientos.push({offset,nombre:m.nombre,tipo:m.tipo,fecha:primero,color:AGOT_COLORS[idx%AGOT_COLORS.length]});
+      }
+      return;
+    }
+    // simular desde hoy en adelante
+    const todayISO = today.toISOString().slice(0,10);
+    const diasFuturos = Object.keys(m.consumoPorDia).filter(iso=>iso>=todayISO).sort();
     let stockRestante = m.stockActual;
-    const diasOrdenados = Object.keys(m.consumoPorDia).sort();
-    let agotado = false;
-    for(const iso of diasOrdenados){
+    for(const iso of diasFuturos){
       stockRestante -= m.consumoPorDia[iso];
-      if(stockRestante <= 0 && !agotado){
-        agotado = true;
+      if(stockRestante <= 0){
         const dDate = new Date(iso+'T00:00:00');
-        const offset = Math.round((dDate - _ganttStart)/(1000*60*60*24));
-        if(offset >= 0 && offset < totalDays){
-          agotamientos.push({offset, nombre: m.nombre, tipo: m.tipo, fecha: iso, color: AGOT_COLORS[idx%AGOT_COLORS.length]});
-        }
+        const offset = Math.round((dDate-_ganttStart)/(1000*60*60*24));
+        if(offset>=0&&offset<totalDays)
+          agotamientos.push({offset,nombre:m.nombre,tipo:m.tipo,fecha:iso,color:AGOT_COLORS[idx%AGOT_COLORS.length]});
+        break;
       }
     }
   });
