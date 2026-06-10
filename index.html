@@ -1055,13 +1055,17 @@
       <!-- Caja (condicional) -->
       <div id="ref-caja-section" class="form-group">
         <label class="form-label">Tipo de caja <span class="req">*</span></label>
-        <div class="form-row form-row-2">
+        <div class="form-row form-row-3">
           <select class="form-select" id="ref-caja">
             <option value="">Selecciona un tipo de caja...</option>
           </select>
           <div>
+            <input type="number" class="form-input" id="ref-piezas-caja" placeholder="Piezas por caja" min="1" />
+            <div class="form-hint">Nº de piezas que caben en 1 caja</div>
+          </div>
+          <div>
             <input type="number" class="form-input" id="ref-cajas-pale" placeholder="Cajas por palé" min="1" />
-            <div class="form-hint">Nº de cajas que caben en 1 palé de producto</div>
+            <div class="form-hint">Nº de cajas que caben en 1 palé</div>
           </div>
         </div>
       </div>
@@ -1241,6 +1245,7 @@ function toDb(table, r){
     if('paleId'     in m){ m.pale_id     = m.paleId;     delete m.paleId; }
     if('cajaId'     in m){ m.caja_id     = m.cajaId;     delete m.cajaId; }
     if('cajasPale'  in m){ m.cajas_pale  = m.cajasPale;  delete m.cajasPale; }
+    if('piezasCaja' in m){ m.piezas_caja = m.piezasCaja; delete m.piezasCaja; }
   }
   if(table==='ordenes'){
     if('refId' in m){ m.ref_id = m.refId; delete m.refId; }
@@ -1270,6 +1275,7 @@ function fromDb(table, r){
     m.paleId    = m.pale_id;     delete m.pale_id;
     m.cajaId    = m.caja_id;     delete m.caja_id;
     m.cajasPale = m.cajas_pale;  delete m.cajas_pale;
+    m.piezasCaja = m.piezas_caja; delete m.piezas_caja;
   }
   if(table==='ordenes'){
     m.refId = m.ref_id; delete m.ref_id;
@@ -1738,7 +1744,7 @@ async function calcConsumo(){
   </div>`);
 
   // cajas
-  if(ref.llevaCaja && ref.cajaId && ref.cajasPale){
+  if(ref.llevaCaja && ref.cajaId && ref.piezasCaja){
     const totalCajas = numPales * ref.cajasPale;
     const cajaNombre = cajas.find(c=>c.id===ref.cajaId)?.nombre||'—';
     const stockCaja = stockOf('caja',ref.cajaId);
@@ -1874,9 +1880,10 @@ async function renderDashboard(){
   const nec = {};
   ordenes.forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
-    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(o.cantidad/ref.cajasPale):Math.ceil(o.cantidad/ref.proddia);
+    const numCajasR = ref.llevaCaja&&ref.piezasCaja>0?Math.ceil(o.cantidad/ref.piezasCaja):0;
+    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(numCajasR/ref.cajasPale):Math.ceil(o.cantidad/ref.proddia);
     if(ref.paleId){ nec['pale_'+ref.paleId]=(nec['pale_'+ref.paleId]||0)+numPales; }
-    if(ref.llevaCaja&&ref.cajaId){ nec['caja_'+ref.cajaId]=(nec['caja_'+ref.cajaId]||0)+numPales*ref.cajasPale; }
+    if(ref.llevaCaja&&ref.cajaId){ nec['caja_'+ref.cajaId]=(nec['caja_'+ref.cajaId]||0)+numCajasR; }
     (ref.auxiliares||[]).forEach(a=>{ nec['aux_'+a.auxId]=(nec['aux_'+a.auxId]||0)+numPales*a.qty; });
   });
 
@@ -2059,9 +2066,10 @@ async function suggestLineas(){
   const nec = {};
   ordenes.forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
-    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(o.cantidad/ref.cajasPale):Math.ceil(o.cantidad/ref.proddia);
+    const numCajasS = ref.llevaCaja&&ref.piezasCaja>0?Math.ceil(o.cantidad/ref.piezasCaja):0;
+    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(numCajasS/ref.cajasPale):Math.ceil(o.cantidad/ref.proddia);
     if(tipo==='pale'&&ref.paleId){ nec[ref.paleId]=(nec[ref.paleId]||0)+numPales; }
-    if(tipo==='caja'&&ref.llevaCaja&&ref.cajaId){ nec[ref.cajaId]=(nec[ref.cajaId]||0)+numPales*ref.cajasPale; }
+    if(tipo==='caja'&&ref.llevaCaja&&ref.cajaId){ nec[ref.cajaId]=(nec[ref.cajaId]||0)+numCajasS; }
     if(tipo==='aux'){ (ref.auxiliares||[]).forEach(a=>{ nec[a.auxId]=(nec[a.auxId]||0)+numPales*a.qty; }); }
   });
 
@@ -2427,14 +2435,12 @@ async function calcOrdenFin(){
   const pales = (await dbGet('pales'));
   const cajas = (await dbGet('cajas'));
   const auxs  = (await dbGet('aux'));
-  const totalPales = ref.llevaCaja && ref.cajasPale>0 ? Math.ceil(cantidad/ref.cajasPale) : Math.ceil(cantidad/ref.proddia);
 
-  // pales reales = piezas / cajasPale si tiene caja, sino se indica por palé (simplificado)
-  const numPales = ref.llevaCaja && ref.cajasPale>0
-    ? Math.ceil(cantidad / ref.cajasPale)
+  const numCajas = ref.llevaCaja && ref.piezasCaja>0
+    ? Math.ceil(cantidad / ref.piezasCaja)
     : '—';
-  const numCajas = ref.llevaCaja && ref.cajasPale>0
-    ? Math.ceil(cantidad / ref.cajasPale) * ref.cajasPale
+  const numPales = ref.llevaCaja && ref.cajasPale>0 && typeof numCajas==='number'
+    ? Math.ceil(numCajas / ref.cajasPale)
     : '—';
 
   const paleNombre = pales.find(p=>p.id===ref.paleId)?.nombre||'—';
@@ -2654,25 +2660,28 @@ async function renderPlanResumen(ordenes, refs){
   ordenes.forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId);
     if(!ref) return;
-    const numPales = ref.llevaCaja && ref.cajasPale>0
-      ? Math.ceil(o.cantidad/ref.cajasPale)
-      : null;
+    const numCajas = ref.llevaCaja && ref.piezasCaja>0
+      ? Math.ceil(o.cantidad/ref.piezasCaja)
+      : 0;
+    const numPales = ref.llevaCaja && ref.cajasPale>0 && numCajas>0
+      ? Math.ceil(numCajas/ref.cajasPale)
+      : Math.ceil(o.cantidad/ref.proddia);
 
     // palé de producto
     if(ref.paleId){
       const k='pale_'+ref.paleId;
       if(!nec[k]){ const p=pales.find(x=>x.id===ref.paleId); nec[k]={tipo:'pale',matId:ref.paleId,nombre:p?.nombre||'—',unit:'ud',necesario:0,stock:stockOf('pale',ref.paleId)}; }
-      nec[k].necesario += numPales||Math.ceil(o.cantidad/ref.proddia);
+      nec[k].necesario += numPales;
     }
     // cajas
-    if(ref.llevaCaja && ref.cajaId && numPales){
+    if(ref.llevaCaja && ref.cajaId && numCajas>0){
       const k='caja_'+ref.cajaId;
       if(!nec[k]){ const c=cajas.find(x=>x.id===ref.cajaId); nec[k]={tipo:'caja',matId:ref.cajaId,nombre:c?.nombre||'—',unit:'ud',necesario:0,stock:stockOf('caja',ref.cajaId)}; }
-      nec[k].necesario += numPales*ref.cajasPale;
+      nec[k].necesario += numCajas;
     }
     // auxiliares
     (ref.auxiliares||[]).forEach(a=>{
-      if(!a.auxId||!numPales) return;
+      if(!a.auxId) return;
       const k='aux_'+a.auxId;
       if(!nec[k]){ const ax=auxs.find(x=>x.id===a.auxId); nec[k]={tipo:'aux',matId:a.auxId,nombre:ax?.nombre||'—',unit:ax?.unidad||'ud',necesario:0,stock:stockOf('aux',a.auxId)}; }
       nec[k].necesario += numPales*a.qty;
@@ -3042,6 +3051,7 @@ async function openRefModal(id){
     palesSel.value = r.paleId||'';
     cajasSel.value = r.cajaId||'';
     document.getElementById('ref-cajas-pale').value = r.cajasPale||'';
+    document.getElementById('ref-piezas-caja').value = r.piezasCaja||'';
     toggleCajaField();
     document.getElementById('ref-aux-lines').innerHTML='';
     (r.auxiliares||[]).forEach(a=>addAuxLine(a));
@@ -3067,6 +3077,7 @@ function resetRefModal(){
   document.getElementById('ref-pale').value='';
   document.getElementById('ref-caja').value='';
   document.getElementById('ref-cajas-pale').value='';
+  document.getElementById('ref-piezas-caja').value='';
   document.getElementById('ref-aux-lines').innerHTML='';
   toggleCajaField();
 }
@@ -3107,10 +3118,12 @@ async function saveRef(){
   const paleId = document.getElementById('ref-pale').value;
   if(!paleId){ showToast('Selecciona un tipo de palé','error'); return; }
   const llevaCaja = document.getElementById('ref-lleva-caja').value==='si';
-  let cajaId='', cajasPale=0;
+  let cajaId='', cajasPale=0, piezasCaja=0;
   if(llevaCaja){
     cajaId = document.getElementById('ref-caja').value;
     if(!cajaId){ showToast('Selecciona un tipo de caja','error'); return; }
+    piezasCaja = parseInt(document.getElementById('ref-piezas-caja').value);
+    if(!piezasCaja||piezasCaja<1){ showToast('Indica cuántas piezas caben en una caja','error'); return; }
     cajasPale = parseInt(document.getElementById('ref-cajas-pale').value);
     if(!cajasPale||cajasPale<1){ showToast('Indica cuántas cajas caben en el palé','error'); return; }
   }
@@ -3125,7 +3138,7 @@ async function saveRef(){
 
   const id = document.getElementById('ref-edit-id').value;
   const articulo = document.getElementById('ref-articulo').value.trim();
-  const row = {nombre,articulo,proddia,llevaCaja,paleId,cajaId,cajasPale,auxiliares:auxLines};
+  const row = {nombre,articulo,proddia,llevaCaja,paleId,cajaId,cajasPale,piezasCaja,auxiliares:auxLines};
 
   setLoading(true);
   if(id){
@@ -3172,7 +3185,7 @@ async function renderRefs(){
 
     // receta pills
     const pills = [];
-    if(r.llevaCaja && caja) pills.push(`${r.cajasPale} × ${caja.nombre}`);
+    if(r.llevaCaja && caja) pills.push(`${r.piezasCaja} pzas/caja · ${r.cajasPale} cajas/palé · ${caja.nombre}`);
     (r.auxiliares||[]).forEach(a=>{
       const aux = auxs.find(x=>x.id===a.auxId);
       if(aux) pills.push(`${a.qty} ${aux.unidad} ${aux.nombre}`);
