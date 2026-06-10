@@ -1989,11 +1989,12 @@ async function renderDashboard(){
       if(tipo==='caja'&&ref.cajaId===matId) consumoDia=palesPorDia*(ref.cajasPale||0);
       if(tipo==='aux'){ const a=(ref.auxiliares||[]).find(x=>x.auxId===matId); if(a) consumoDia=palesPorDia*a.qty; }
       if(consumoDia<=0) return;
-      let d=new Date(inicioDate);
-      while(d<=finDate){
-        const iso=d.toISOString().slice(0,10);
+      const msDay2=1000*60*60*24;
+      const startMs2=Date.UTC(parseInt(o.inicio.slice(0,4)),parseInt(o.inicio.slice(5,7))-1,parseInt(o.inicio.slice(8,10)));
+      const endMs2=Date.UTC(parseInt(o.fin.slice(0,4)),parseInt(o.fin.slice(5,7))-1,parseInt(o.fin.slice(8,10)));
+      for(let ms2=startMs2;ms2<=endMs2;ms2+=msDay2){
+        const iso=new Date(ms2).toISOString().slice(0,10);
         consumoPorDiaDash[iso]=(consumoPorDiaDash[iso]||0)+consumoDia;
-        d=new Date(d); d.setDate(d.getDate()+1);
       }
     });
     const diasFuturosDash=Object.keys(consumoPorDiaDash).filter(iso=>iso>=today.toISOString().slice(0,10)).sort();
@@ -2891,13 +2892,23 @@ async function renderGantt(){
           consumoPorDia: {}
         };
       }
-      // consumo desde la fecha de inicio de la orden (no desde hoy)
-      let d = new Date(inicioDate);
-      while(d <= finDate){
+      // iterar días usando timestamps UTC para evitar problemas de zona horaria
+      const msDay = 1000*60*60*24;
+      const startMs = Date.UTC(
+        parseInt(o.inicio.slice(0,4)),
+        parseInt(o.inicio.slice(5,7))-1,
+        parseInt(o.inicio.slice(8,10))
+      );
+      const endMs = Date.UTC(
+        parseInt(o.fin.slice(0,4)),
+        parseInt(o.fin.slice(5,7))-1,
+        parseInt(o.fin.slice(8,10))
+      );
+      for(let ms = startMs; ms <= endMs; ms += msDay){
+        const d = new Date(ms);
         const iso = d.toISOString().slice(0,10);
         materialConsumo[k].consumoPorDia[iso] =
           (materialConsumo[k].consumoPorDia[iso]||0) + palesPorDia * cantPorPale;
-        d = new Date(d); d.setDate(d.getDate()+1);
       }
     };
 
@@ -3157,12 +3168,17 @@ async function renderPlanResumen(ordenes, refs){
       }
       if(consumoDia <= 0) return;
 
-      // iterar cada día de la orden desde su inicio (no desde hoy)
-      let d = new Date(inicioDate);
-      while(d <= finDate){
-        const iso = d.toISOString().slice(0,10);
+      // iterar días usando UTC para evitar problemas de zona horaria
+      const msDay = 1000*60*60*24;
+      const startMs = Date.UTC(
+        parseInt(o.inicio.slice(0,4)), parseInt(o.inicio.slice(5,7))-1, parseInt(o.inicio.slice(8,10))
+      );
+      const endMs = Date.UTC(
+        parseInt(o.fin.slice(0,4)), parseInt(o.fin.slice(5,7))-1, parseInt(o.fin.slice(8,10))
+      );
+      for(let ms=startMs; ms<=endMs; ms+=msDay){
+        const iso = new Date(ms).toISOString().slice(0,10);
         consumoPorDia[iso] = (consumoPorDia[iso]||0) + consumoDia;
-        d = new Date(d); d.setDate(d.getDate()+1);
       }
     });
 
