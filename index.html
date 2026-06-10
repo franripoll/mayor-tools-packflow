@@ -1271,7 +1271,7 @@ async function dbGet(table){
 async function dbInsert(table, row){
   const dbRow = toDb(table, row);
   const {data,error} = await supa.from(table).insert(dbRow).select().single();
-  if(error){ console.error('dbInsert',table,error); showToast('Error al guardar','error'); return null; }
+  if(error){ console.error('dbInsert',table, JSON.stringify(error), 'Row:', JSON.stringify(dbRow)); showToast('Error: '+error.message,'error'); return null; }
   delete _cache[table];
   return fromDb(table, data);
 }
