@@ -1938,13 +1938,30 @@ async function renderDashboard(){
     const [tipo,matId]=k.split('_');
     const stock=stockOf(tipo,matId);
     totalStock+=stock;
+    let nombre='';
+    if(tipo==='pale') nombre=pales.find(p=>p.id===matId)?.nombre||'—';
+    if(tipo==='caja') nombre=cajas.find(c=>c.id===matId)?.nombre||'—';
+    if(tipo==='aux')  nombre=auxs.find(a=>a.id===matId)?.nombre||'—';
+
+    // días hasta agotamiento con consumo activo
+    let consumoDiario=0;
+    ordenes.forEach(o=>{
+      const ref=refs.find(r=>r.id===o.refId); if(!ref) return;
+      const finDate=new Date(o.fin+'T00:00:00');
+      if(finDate<today) return;
+      const palesPorDia=ref.piezasCaja>0&&ref.cajasPale>0?ref.proddia/ref.piezasCaja/ref.cajasPale:ref.proddia/(ref.cajasPale||1);
+      if(tipo==='pale'&&ref.paleId===matId) consumoDiario+=palesPorDia;
+      if(tipo==='caja'&&ref.cajaId===matId) consumoDiario+=palesPorDia*(ref.cajasPale||0);
+      if(tipo==='aux'){ const a=(ref.auxiliares||[]).find(x=>x.auxId===matId); if(a) consumoDiario+=palesPorDia*a.qty; }
+    });
+    const diasHasta = consumoDiario>0 ? Math.floor(stock/consumoDiario) : null;
+
     if(stock<necesario){
       deficitCount++;
-      let nombre='';
-      if(tipo==='pale') nombre=pales.find(p=>p.id===matId)?.nombre||'—';
-      if(tipo==='caja') nombre=cajas.find(c=>c.id===matId)?.nombre||'—';
-      if(tipo==='aux')  nombre=auxs.find(a=>a.id===matId)?.nombre||'—';
-      alertItems.push({nombre,stock,necesario,deficit:necesario-stock,tipo});
+      alertItems.push({nombre,stock,necesario,deficit:necesario-stock,tipo,diasHasta});
+    } else {
+      // material OK pero con consumo activo — añadir a lista de estado
+      if(consumoDiario>0) alertItems.push({nombre,stock,necesario,deficit:necesario-stock,tipo,diasHasta,ok:true});
     }
   });
 
@@ -1979,21 +1996,55 @@ async function renderDashboard(){
   }
 
   // Alertas déficit
-  if(alertItems.length){
+  const deficitItems = alertItems.filter(i=>!i.ok);
+  const okItems      = alertItems.filter(i=>i.ok);
+
+  if(deficitItems.length){
     html+=`<div style="font-size:12px;font-weight:500;color:var(--alert);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">⚠ Déficit de material</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:24px;">
-    ${alertItems.map(item=>`
+    ${deficitItems.map(item=>{
+      const diasColor = item.diasHasta===0?'var(--alert)':item.diasHasta!==null&&item.diasHasta<=3?'var(--alert)':'var(--alert)';
+      const diasTxt = item.diasHasta===null?'Sin consumo activo':item.diasHasta===0?'¡Agotado!':item.diasHasta===1?'Se acaba hoy':`Se acaba en ${item.diasHasta} día${item.diasHasta!==1?'s':''}`;
+      return `
       <div style="background:var(--sidebar);border:1px solid rgba(240,136,62,.4);border-radius:var(--rl);padding:14px 16px;">
         <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">${item.tipo==='pale'?'Palé':item.tipo==='caja'?'Caja':'Auxiliar'}</div>
         <div style="font-size:14px;font-weight:500;color:var(--text);margin-top:2px;">${item.nombre}</div>
+        <div style="margin-top:10px;font-size:13px;font-weight:600;color:var(--alert);">⏱ ${diasTxt}</div>
         <div style="margin-top:8px;display:flex;justify-content:space-between;font-size:12px;">
           <span style="color:var(--text2);">Stock: <strong style="color:var(--text);">${item.stock.toLocaleString('es-ES')}</strong></span>
           <span style="color:var(--text2);">Necesario: <strong style="color:var(--text);">${item.necesario.toLocaleString('es-ES')}</strong></span>
         </div>
-        <div style="margin-top:6px;font-size:13px;font-weight:600;color:var(--alert);">Déficit: −${item.deficit.toLocaleString('es-ES')}</div>
-      </div>`).join('')}
+        <div style="margin-top:6px;font-size:12px;color:var(--alert);">Déficit: −${item.deficit.toLocaleString('es-ES')}</div>
+      </div>`;
+    }).join('')}
     </div>`;
   }
+
+  // Materiales OK con consumo activo
+  if(okItems.length){
+    html+=`<div style="font-size:12px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Estado del material</div>
+    <div class="table-wrap" style="margin-bottom:24px;">
+    <table><thead><tr>
+      <th>Material</th><th>Tipo</th>
+      <th style="text-align:right;">Stock</th>
+      <th style="text-align:right;">Se acaba en</th>
+    </tr></thead><tbody>
+    ${[...deficitItems,...okItems].map(item=>{
+      const dias = item.diasHasta;
+      let diasHtml, diasColor;
+      if(dias===null){ diasHtml='—'; diasColor='var(--text3)'; }
+      else if(dias===0){ diasHtml='¡Hoy!'; diasColor='var(--alert)'; }
+      else if(dias<=3){ diasHtml=`${dias}d`; diasColor='var(--alert)'; }
+      else if(dias<=7){ diasHtml=`${dias}d`; diasColor='var(--alert-dim);filter:brightness(2)'; }
+      else { diasHtml=`${dias}d`; diasColor='var(--success)'; }
+      return `<tr>
+        <td style="font-weight:500;">${item.nombre}</td>
+        <td class="td-muted">${item.tipo==='pale'?'Palé':item.tipo==='caja'?'Caja':'Auxiliar'}</td>
+        <td style="text-align:right;">${item.stock.toLocaleString('es-ES')}</td>
+        <td style="text-align:right;font-weight:600;color:${diasColor};">${diasHtml}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table></div>`;
 
   // Pedidos pendientes
   const pedActivos=pedidos.filter(p=>p.estado==='pendiente'||p.estado==='parcial');
