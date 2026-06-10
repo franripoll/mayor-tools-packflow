@@ -847,6 +847,7 @@
       </button>
     </div>
     <div class="modal-body">
+      <input type="hidden" id="ped-edit-id" />
       <div class="form-row form-row-2">
         <div class="form-group">
           <label class="form-label">Tipo de material <span class="req">*</span></label>
@@ -2002,6 +2003,7 @@ async function nextPedNum(){
 
 async function openPedidoModal(){
   _pedLineas = [];
+  document.getElementById('ped-edit-id').value='';
   document.getElementById('ped-tipo').value='';
   document.getElementById('ped-fecha-est').value='';
   document.getElementById('ped-obs').value='';
@@ -2014,6 +2016,7 @@ async function openPedidoModal(){
 
 function closePedidoModal(){
   document.getElementById('modal-pedido').classList.remove('open');
+  document.getElementById('ped-edit-id').value='';
 }
 document.getElementById('modal-pedido').addEventListener('click',function(e){
   if(e.target===this) closePedidoModal();
@@ -2107,11 +2110,29 @@ async function savePedido(){
     lineas, recepciones:[], estado:'pendiente'
   };
   setLoading(true);
-  await dbInsert('pedidos',pedido);
+  const editId = document.getElementById('ped-edit-id').value;
+  if(editId){
+    await dbUpdate('pedidos', editId, {
+      tipo,
+      fechaEst: document.getElementById('ped-fecha-est').value||null,
+      obs: document.getElementById('ped-obs').value.trim(),
+      lineas,
+    });
+    showToast('Pedido actualizado');
+  } else {
+    const pedido={
+      id:uid(), num:await nextPedNum(), tipo,
+      fecha:new Date().toISOString().slice(0,10),
+      fechaEst:document.getElementById('ped-fecha-est').value||null,
+      obs:document.getElementById('ped-obs').value.trim(),
+      lineas, recepciones:[], estado:'pendiente'
+    };
+    await dbInsert('pedidos',pedido);
+    showToast(`Pedido ${pedido.num} creado`);
+  }
   setLoading(false);
   closePedidoModal();
   await renderPedidos();
-  showToast(`Pedido ${pedido.num} creado`);
 }
 
 // RECEPCIÓN
@@ -2193,6 +2214,44 @@ async function saveRecepcion(){
   showToast('Recepción registrada · stock actualizado');
 }
 
+async function editPedido(id){
+  const pedidos = await dbGet('pedidos');
+  const p = pedidos.find(x=>x.id===id);
+  if(!p) return;
+
+  // populate modal
+  document.getElementById('ped-tipo').value = p.tipo;
+  await onPedTipoChange();
+  document.getElementById('ped-fecha-est').value = p.fechaEst||'';
+  document.getElementById('ped-obs').value = p.obs||'';
+  document.getElementById('modal-pedido-title').textContent = `Editar ${p.num}`;
+
+  // set edit id
+  document.getElementById('ped-edit-id').value = id;
+
+  // reload lineas
+  document.getElementById('ped-lineas').innerHTML='';
+  for(const l of p.lineas){
+    await addPedLinea({matId:l.matId, cantidad:l.cantidad});
+  }
+
+  document.getElementById('modal-pedido').classList.add('open');
+}
+
+async function eliminarPedido(id, num){
+  showConfirm(
+    `Eliminar ${num}`,
+    '¿Seguro que quieres eliminar este pedido? Esta acción no se puede deshacer.',
+    async()=>{
+      setLoading(true);
+      await dbDelete('pedidos', id);
+      setLoading(false);
+      await renderPedidos();
+      showToast('Pedido eliminado');
+    }
+  );
+}
+
 async function cerrarPedido(id){
   showConfirm('Cerrar pedido','¿Cerrar este pedido manualmente? El material pendiente quedará sin recibir.',async()=>{
     setLoading(true);
@@ -2255,11 +2314,15 @@ async function renderPedidos(){
         ${p.obs?`<span class="ped-obs-text" style="margin-left:8px;">${p.obs}</span>`:''}
         <div class="ped-actions">
           ${isActive?`<button class="btn btn-ghost btn-sm" onclick="openRecepcionModal('${p.id}')">Recepción</button>`:''}
+          ${isActive?`<button class="btn btn-ghost btn-sm" onclick="editPedido('${p.id}')">Editar</button>`:''}
           <button class="btn btn-secondary btn-sm" onclick="exportPedidoPDF('${p.id}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             PDF
           </button>
           ${isActive?`<button class="btn btn-ghost btn-sm" onclick="cerrarPedido('${p.id}')">Cerrar</button>`:''}
+          <button class="btn btn-danger btn-sm" onclick="eliminarPedido('${p.id}','${p.num}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
         </div>
       </div>
       <table class="ped-table">
