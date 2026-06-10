@@ -1967,18 +1967,41 @@ async function renderDashboard(){
     if(tipo==='caja') nombre=cajas.find(c=>c.id===matId)?.nombre||'—';
     if(tipo==='aux')  nombre=auxs.find(a=>a.id===matId)?.nombre||'—';
 
-    // días hasta agotamiento con consumo activo
-    let consumoDiario=0;
+    // días hasta agotamiento — simulación día a día respetando fecha inicio de cada orden
+    const consumoPorDiaDash = {};
     ordenes.forEach(o=>{
       const ref=refs.find(r=>r.id===o.refId); if(!ref) return;
+      const inicioDate=new Date(o.inicio+'T00:00:00');
       const finDate=new Date(o.fin+'T00:00:00');
       if(finDate<today) return;
-      const palesPorDia=ref.piezasCaja>0&&ref.cajasPale>0?ref.proddia/ref.piezasCaja/ref.cajasPale:ref.proddia/(ref.cajasPale||1);
-      if(tipo==='pale'&&ref.paleId===matId) consumoDiario+=palesPorDia;
-      if(tipo==='caja'&&ref.cajaId===matId) consumoDiario+=palesPorDia*(ref.cajasPale||0);
-      if(tipo==='aux'){ const a=(ref.auxiliares||[]).find(x=>x.auxId===matId); if(a) consumoDiario+=palesPorDia*a.qty; }
+      const palesPorDia=ref.piezasCaja>0&&ref.cajasPale>0
+        ?ref.proddia/ref.piezasCaja/ref.cajasPale
+        :ref.proddia/(ref.piezasPale||ref.proddia);
+      let consumoDia=0;
+      if(tipo==='pale'&&ref.paleId===matId) consumoDia=palesPorDia;
+      if(tipo==='caja'&&ref.cajaId===matId) consumoDia=palesPorDia*(ref.cajasPale||0);
+      if(tipo==='aux'){ const a=(ref.auxiliares||[]).find(x=>x.auxId===matId); if(a) consumoDia=palesPorDia*a.qty; }
+      if(consumoDia<=0) return;
+      let d=new Date(inicioDate);
+      while(d<=finDate){
+        const iso=d.toISOString().slice(0,10);
+        consumoPorDiaDash[iso]=(consumoPorDiaDash[iso]||0)+consumoDia;
+        d=new Date(d); d.setDate(d.getDate()+1);
+      }
     });
-    const diasHasta = consumoDiario>0 ? Math.floor(stock/consumoDiario) : null;
+    const diasFuturosDash=Object.keys(consumoPorDiaDash).filter(iso=>iso>=today.toISOString().slice(0,10)).sort();
+    let diasHasta=null;
+    if(diasFuturosDash.length){
+      let sr=stock;
+      for(const iso of diasFuturosDash){
+        sr-=consumoPorDiaDash[iso];
+        if(sr<=0){
+          const dA=new Date(iso+'T00:00:00');
+          diasHasta=Math.round((dA-today)/(1000*60*60*24));
+          break;
+        }
+      }
+    }
 
     if(stock<necesario){
       deficitCount++;
@@ -2847,7 +2870,7 @@ async function renderGantt(){
     // palés por día de esta orden
     const palesPorDia = ref.piezasCaja>0 && ref.cajasPale>0
       ? ref.proddia / ref.piezasCaja / ref.cajasPale
-      : ref.proddia / (ref.cajasPale||1);
+      : ref.proddia / (ref.piezasPale||ref.proddia);
 
     // solo consideramos órdenes activas o futuras
     if(finDate < today) return;
@@ -2858,12 +2881,11 @@ async function renderGantt(){
         materialConsumo[k] = {
           tipo, matId, nombre,
           stockActual: stockOf(tipo, matId),
-          // consumo por día indexado por fecha ISO
           consumoPorDia: {}
         };
       }
-      // add daily consumption for each day of this order
-      let d = new Date(Math.max(inicioDate, today));
+      // consumo desde la fecha de inicio de la orden (no desde hoy)
+      let d = new Date(inicioDate);
       while(d <= finDate){
         const iso = d.toISOString().slice(0,10);
         materialConsumo[k].consumoPorDia[iso] =
@@ -3071,38 +3093,61 @@ async function renderPlanResumen(ordenes, refs){
   const items = Object.values(nec);
   if(!items.length){ document.getElementById('plan-resumen').innerHTML=''; return; }
 
-  // Calcular días hasta agotamiento para cada material
-  // consumo diario = necesario_total / días_totales_planificación
-  // pero más preciso: stock / consumo_diario_promedio activo
+  // Calcular días hasta agotamiento simulando día a día
   const today = new Date(); today.setHours(0,0,0,0);
 
   function diasHastaAgotamiento(n){
     if(n.stock <= 0) return 0;
-    // Calcular consumo diario total de este material sumando todas las órdenes activas
-    let consumoDiarioTotal = 0;
+
+    // Construir mapa de consumo diario por fecha ISO
+    const consumoPorDia = {};
+
     ordenes.forEach(o=>{
       const ref = refs.find(r=>r.id===o.refId);
       if(!ref) return;
-      const finDate = new Date(o.fin+'T00:00:00');
-      if(finDate < today) return; // orden ya terminada
       const inicioDate = new Date(o.inicio+'T00:00:00');
-      const efectivoDesde = inicioDate > today ? inicioDate : today;
-      if(efectivoDesde > finDate) return;
+      const finDate    = new Date(o.fin+'T00:00:00');
+      if(finDate < today) return; // orden ya terminada
 
       const palesPorDia = ref.piezasCaja>0 && ref.cajasPale>0
         ? ref.proddia / ref.piezasCaja / ref.cajasPale
-        : ref.proddia / (ref.cajasPale||1);
+        : ref.proddia / (ref.piezasPale||ref.proddia);
 
-      const k = n.tipo+'_'+n.matId;
-      if(n.tipo==='pale' && ref.paleId===n.matId) consumoDiarioTotal += palesPorDia * 1;
-      if(n.tipo==='caja' && ref.cajaId===n.matId) consumoDiarioTotal += palesPorDia * (ref.cajasPale||0);
+      let consumoDia = 0;
+      if(n.tipo==='pale' && ref.paleId===n.matId)  consumoDia = palesPorDia;
+      if(n.tipo==='caja' && ref.cajaId===n.matId)  consumoDia = palesPorDia * (ref.cajasPale||0);
       if(n.tipo==='aux'){
         const a = (ref.auxiliares||[]).find(x=>x.auxId===n.matId);
-        if(a) consumoDiarioTotal += palesPorDia * a.qty;
+        if(a) consumoDia = palesPorDia * a.qty;
+      }
+      if(consumoDia <= 0) return;
+
+      // iterar cada día de la orden desde su inicio (no desde hoy)
+      let d = new Date(inicioDate);
+      while(d <= finDate){
+        const iso = d.toISOString().slice(0,10);
+        consumoPorDia[iso] = (consumoPorDia[iso]||0) + consumoDia;
+        d = new Date(d); d.setDate(d.getDate()+1);
       }
     });
-    if(consumoDiarioTotal <= 0) return null; // no hay consumo activo
-    return Math.floor(n.stock / consumoDiarioTotal);
+
+    // Si no hay consumo futuro, no hay agotamiento relevante
+    const diasFuturos = Object.keys(consumoPorDia)
+      .filter(iso=> iso >= today.toISOString().slice(0,10))
+      .sort();
+    if(!diasFuturos.length) return null;
+
+    // Simular stock día a día desde hoy
+    let stockRestante = n.stock;
+    for(const iso of diasFuturos){
+      stockRestante -= consumoPorDia[iso];
+      if(stockRestante <= 0){
+        // calcular cuántos días desde hoy es este iso
+        const dAgot = new Date(iso+'T00:00:00');
+        return Math.round((dAgot - today)/(1000*60*60*24));
+      }
+    }
+    return null; // stock suficiente para toda la planificación
   }
 
   const cardsHtml = items.map(n=>{
