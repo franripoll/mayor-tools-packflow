@@ -1116,6 +1116,13 @@
         </div>
       </div>
 
+      <!-- Sin caja: piezas por palé -->
+      <div id="ref-sin-caja-section" class="form-group" style="display:none;">
+        <label class="form-label">Piezas por palé <span class="req">*</span></label>
+        <input type="number" class="form-input" id="ref-piezas-pale" placeholder="Nº de piezas que caben en 1 palé" min="1" />
+        <div class="form-hint">Cantidad de piezas que se colocan en un palé de producto.</div>
+      </div>
+
       <!-- Auxiliares -->
       <div class="form-group">
         <label class="form-label">Materiales auxiliares</label>
@@ -1296,6 +1303,7 @@ function toDb(table, r){
     if('cajaId'     in m){ m.caja_id     = m.cajaId;     delete m.cajaId; }
     if('cajasPale'  in m){ m.cajas_pale  = m.cajasPale;  delete m.cajasPale; }
     if('piezasCaja' in m){ m.piezas_caja = m.piezasCaja; delete m.piezasCaja; }
+    if('piezasPale' in m){ m.piezas_pale = m.piezasPale; delete m.piezasPale; }
   }
   if(table==='ordenes'){
     if('refId' in m){ m.ref_id = m.refId; delete m.refId; }
@@ -1326,6 +1334,7 @@ function fromDb(table, r){
     m.cajaId    = m.caja_id;     delete m.caja_id;
     m.cajasPale = m.cajas_pale;  delete m.cajas_pale;
     m.piezasCaja = m.piezas_caja; delete m.piezas_caja;
+    m.piezasPale = m.piezas_pale; delete m.piezas_pale;
   }
   if(table==='ordenes'){
     m.refId = m.ref_id; delete m.ref_id;
@@ -1942,7 +1951,7 @@ async function renderDashboard(){
   ordenes.forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
     const numCajasR = ref.llevaCaja&&ref.piezasCaja>0?Math.ceil(o.cantidad/ref.piezasCaja):0;
-    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(numCajasR/ref.cajasPale):Math.ceil(o.cantidad/ref.proddia);
+    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(numCajasR/ref.cajasPale):Math.ceil(o.cantidad/(ref.piezasPale||ref.proddia));
     if(ref.paleId){ nec['pale_'+ref.paleId]=(nec['pale_'+ref.paleId]||0)+numPales; }
     if(ref.llevaCaja&&ref.cajaId){ nec['caja_'+ref.cajaId]=(nec['caja_'+ref.cajaId]||0)+numCajasR; }
     (ref.auxiliares||[]).forEach(a=>{ nec['aux_'+a.auxId]=(nec['aux_'+a.auxId]||0)+numPales*a.qty; });
@@ -2194,7 +2203,7 @@ async function suggestLineas(){
   ordenes.forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
     const numCajasS = ref.llevaCaja&&ref.piezasCaja>0?Math.ceil(o.cantidad/ref.piezasCaja):0;
-    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(numCajasS/ref.cajasPale):Math.ceil(o.cantidad/ref.proddia);
+    const numPales = ref.llevaCaja&&ref.cajasPale>0?Math.ceil(numCajasS/ref.cajasPale):Math.ceil(o.cantidad/(ref.piezasPale||ref.proddia));
     if(tipo==='pale'&&ref.paleId){ nec[ref.paleId]=(nec[ref.paleId]||0)+numPales; }
     if(tipo==='caja'&&ref.llevaCaja&&ref.cajaId){ nec[ref.cajaId]=(nec[ref.cajaId]||0)+numCajasS; }
     if(tipo==='aux'){ (ref.auxiliares||[]).forEach(a=>{ nec[a.auxId]=(nec[a.auxId]||0)+numPales*a.qty; }); }
@@ -3024,7 +3033,7 @@ async function renderPlanResumen(ordenes, refs){
       : 0;
     const numPales = ref.llevaCaja && ref.cajasPale>0 && numCajas>0
       ? Math.ceil(numCajas/ref.cajasPale)
-      : Math.ceil(o.cantidad/ref.proddia);
+      : Math.ceil(o.cantidad/(ref.piezasPale||ref.proddia));
 
     // palé de producto
     if(ref.paleId){
@@ -3477,6 +3486,7 @@ async function openRefModal(id){
     cajasSel.value = r.cajaId||'';
     document.getElementById('ref-cajas-pale').value = r.cajasPale||'';
     document.getElementById('ref-piezas-caja').value = r.piezasCaja||'';
+    document.getElementById('ref-piezas-pale').value = r.piezasPale||'';
     toggleCajaField();
     document.getElementById('ref-aux-lines').innerHTML='';
     (r.auxiliares||[]).forEach(a=>addAuxLine(a));
@@ -3503,6 +3513,7 @@ function resetRefModal(){
   document.getElementById('ref-caja').value='';
   document.getElementById('ref-cajas-pale').value='';
   document.getElementById('ref-piezas-caja').value='';
+  document.getElementById('ref-piezas-pale').value='';
   document.getElementById('ref-aux-lines').innerHTML='';
   toggleCajaField();
 }
@@ -3513,7 +3524,8 @@ document.getElementById('modal-ref').addEventListener('click',function(e){
 
 function toggleCajaField(){
   const val = document.getElementById('ref-lleva-caja').value;
-  document.getElementById('ref-caja-section').style.display = val==='si'?'block':'none';
+  document.getElementById('ref-caja-section').style.display     = val==='si'?'block':'none';
+  document.getElementById('ref-sin-caja-section').style.display = val==='no'?'block':'none';
 }
 
 async function addAuxLine(data){
@@ -3543,7 +3555,7 @@ async function saveRef(){
   const paleId = document.getElementById('ref-pale').value;
   if(!paleId){ showToast('Selecciona un tipo de palé','error'); return; }
   const llevaCaja = document.getElementById('ref-lleva-caja').value==='si';
-  let cajaId='', cajasPale=0, piezasCaja=0;
+  let cajaId='', cajasPale=0, piezasCaja=0, piezasPale=0;
   if(llevaCaja){
     cajaId = document.getElementById('ref-caja').value;
     if(!cajaId){ showToast('Selecciona un tipo de caja','error'); return; }
@@ -3551,6 +3563,9 @@ async function saveRef(){
     if(!piezasCaja||piezasCaja<1){ showToast('Indica cuántas piezas caben en una caja','error'); return; }
     cajasPale = parseInt(document.getElementById('ref-cajas-pale').value);
     if(!cajasPale||cajasPale<1){ showToast('Indica cuántas cajas caben en el palé','error'); return; }
+  } else {
+    piezasPale = parseInt(document.getElementById('ref-piezas-pale').value);
+    if(!piezasPale||piezasPale<1){ showToast('Indica cuántas piezas caben en un palé','error'); return; }
   }
 
   const auxLines = [];
@@ -3563,7 +3578,7 @@ async function saveRef(){
 
   const id = document.getElementById('ref-edit-id').value;
   const articulo = document.getElementById('ref-articulo').value.trim();
-  const row = {nombre,articulo,proddia,llevaCaja,paleId,cajaId,cajasPale,piezasCaja,auxiliares:auxLines};
+  const row = {nombre,articulo,proddia,llevaCaja,paleId,cajaId,cajasPale,piezasCaja,piezasPale,auxiliares:auxLines};
 
   setLoading(true);
   if(id){
@@ -3611,6 +3626,7 @@ async function renderRefs(){
     // receta pills
     const pills = [];
     if(r.llevaCaja && caja) pills.push(`${r.piezasCaja} pzas/caja · ${r.cajasPale} cajas/palé · ${caja.nombre}`);
+    if(!r.llevaCaja && r.piezasPale) pills.push(`${r.piezasPale} pzas/palé`);
     (r.auxiliares||[]).forEach(a=>{
       const aux = auxs.find(x=>x.id===a.auxId);
       if(aux) pills.push(`${a.qty} ${aux.unidad} ${aux.nombre}`);
