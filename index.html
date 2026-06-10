@@ -2045,6 +2045,7 @@ async function renderDashboard(){
       </tr>`;
     }).join('')}
     </tbody></table></div>`;
+  }
 
   // Pedidos pendientes
   const pedActivos=pedidos.filter(p=>p.estado==='pendiente'||p.estado==='parcial');
