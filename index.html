@@ -1928,7 +1928,8 @@ async function renderDashboard(){
   const cajas    = await dbGet('cajas');
   const auxs     = await dbGet('aux');
 
-  const today = new Date().toISOString().slice(0,10);
+  const todayISO = new Date().toISOString().slice(0,10);
+  const todayDate = new Date(); todayDate.setHours(0,0,0,0);
 
   function stockOf(tipo,matId){
     const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
@@ -1947,7 +1948,7 @@ async function renderDashboard(){
   }
 
   // Producciones activas hoy
-  const activas = ordenes.filter(o=>o.inicio<=today&&o.fin>=today);
+  const activas = ordenes.filter(o=>o.inicio<=todayISO&&o.fin>=todayISO);
   document.getElementById('dash-activas').textContent = activas.length||'0';
 
   // Pedidos pendientes
@@ -1980,7 +1981,7 @@ async function renderDashboard(){
       const ref=refs.find(r=>r.id===o.refId); if(!ref) return;
       const inicioDate=new Date(o.inicio+'T00:00:00');
       const finDate=new Date(o.fin+'T00:00:00');
-      if(finDate<today) return;
+      if(finDate<todayDate) return;
       const palesPorDia=ref.piezasCaja>0&&ref.cajasPale>0
         ?ref.proddia/ref.piezasCaja/ref.cajasPale
         :ref.proddia/(ref.piezasPale||ref.proddia);
@@ -1997,7 +1998,7 @@ async function renderDashboard(){
         consumoPorDiaDash[iso]=(consumoPorDiaDash[iso]||0)+consumoDia;
       }
     });
-    const diasFuturosDash=Object.keys(consumoPorDiaDash).filter(iso=>iso>=today.toISOString().slice(0,10)).sort();
+    const diasFuturosDash=Object.keys(consumoPorDiaDash).filter(iso=>iso>=todayISO).sort();
     let diasHasta=null;
     if(diasFuturosDash.length){
       let sr=stock;
@@ -2005,7 +2006,7 @@ async function renderDashboard(){
         sr-=consumoPorDiaDash[iso];
         if(sr<=0){
           const dA=new Date(iso+'T00:00:00');
-          diasHasta=Math.round((dA-today)/(1000*60*60*24));
+          diasHasta=Math.round((dA-todayDate)/(1000*60*60*24));
           break;
         }
       }
@@ -2039,7 +2040,7 @@ async function renderDashboard(){
     ${activas.map((o,i)=>{
       const ref=refs.find(r=>r.id===o.refId);
       const color=GANTT_COLORS[i%GANTT_COLORS.length];
-      const daysLeft=Math.round((new Date(o.fin)-new Date(today))/(1000*60*60*24))+1;
+      const daysLeft=Math.round((new Date(o.fin)-todayDate)/(1000*60*60*24))+1;
       return `<div style="background:var(--sidebar);border:1px solid var(--border);border-left:3px solid ${color};border-radius:var(--rl);padding:14px 16px;">
         <div style="font-size:14px;font-weight:500;color:var(--text);">${ref?.nombre||'—'}</div>
         <div style="font-size:11px;color:var(--text2);margin-top:4px;">${o.cantidad.toLocaleString('es-ES')} pzas · ${daysLeft} día${daysLeft!==1?'s':''} restante${daysLeft!==1?'s':''}</div>
