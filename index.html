@@ -1219,6 +1219,10 @@
   .nec-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
   .nec-card { background:var(--sidebar); border:1px solid var(--border); border-radius:var(--rl); padding:14px 16px; }
   .nec-card.deficit { border-color:rgba(240,136,62,.4); }
+  .nec-card.pedido  { border-color:rgba(88,166,255,.5); }
+  .nec-card.deficit.pedido { border-color:rgba(240,136,62,.4); box-shadow:0 0 0 1px rgba(88,166,255,.3); }
+  .nec-pedido-line { font-size:11px; color:var(--accent); margin-top:3px; display:flex; align-items:center; gap:4px; }
+  .nec-pedido-line svg { flex-shrink:0; }
   .nec-label { font-size:11px; color:var(--text2); margin-bottom:4px; }
   .nec-name { font-size:13px; font-weight:500; color:var(--text); margin-bottom:8px; }
   .nec-row { display:flex; justify-content:space-between; font-size:12px; color:var(--text2); margin-bottom:3px; }
@@ -1900,19 +1904,30 @@ async function renderConsumo(){
 // DASHBOARD
 // ─────────────────────────────────────────
 async function renderDashboard(){
-  const ordenes  = (await dbGet('ordenes'));
-  const refs     = (await dbGet('refs'));
-  const conteos  = (await dbGet('conteos'));
-  const pedidos  = (await dbGet('pedidos'));
-  const pales    = (await dbGet('pales'));
-  const cajas    = (await dbGet('cajas'));
-  const auxs     = (await dbGet('aux'));
+  const ordenes  = await dbGet('ordenes');
+  const refs     = await dbGet('refs');
+  const conteos  = await dbGet('conteos');
+  const pedidos  = await dbGet('pedidos');
+  const pales    = await dbGet('pales');
+  const cajas    = await dbGet('cajas');
+  const auxs     = await dbGet('aux');
 
   const today = new Date().toISOString().slice(0,10);
 
   function stockOf(tipo,matId){
     const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
     return last?last.cantidad:0;
+  }
+
+  // pedidos activos por material
+  const pedidosAct = pedidos.filter(p=>p.estado==='pendiente'||p.estado==='parcial');
+  function pedsDeMat(tipo, matId){
+    return pedidosAct.filter(p=>
+      p.tipo===tipo && p.lineas.some(l=>l.matId===matId && l.cantidad-l.recibido>0)
+    ).map(p=>{
+      const l=p.lineas.find(x=>x.matId===matId);
+      return {num:p.num, pendiente:l?l.cantidad-l.recibido:0, unit:l?.unit||'ud', fechaEst:p.fechaEst||null};
+    });
   }
 
   // Producciones activas hoy
@@ -1958,10 +1973,9 @@ async function renderDashboard(){
 
     if(stock<necesario){
       deficitCount++;
-      alertItems.push({nombre,stock,necesario,deficit:necesario-stock,tipo,diasHasta});
+      alertItems.push({nombre,stock,necesario,deficit:necesario-stock,tipo,matId,diasHasta});
     } else {
-      // material OK pero con consumo activo — añadir a lista de estado
-      if(consumoDiario>0) alertItems.push({nombre,stock,necesario,deficit:necesario-stock,tipo,diasHasta,ok:true});
+      if(consumoDiario>0) alertItems.push({nombre,stock,necesario,deficit:necesario-stock,tipo,matId,diasHasta,ok:true});
     }
   });
 
@@ -2003,10 +2017,16 @@ async function renderDashboard(){
     html+=`<div style="font-size:12px;font-weight:500;color:var(--alert);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">⚠ Déficit de material</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:24px;">
     ${deficitItems.map(item=>{
-      const diasColor = item.diasHasta===0?'var(--alert)':item.diasHasta!==null&&item.diasHasta<=3?'var(--alert)':'var(--alert)';
+      const peds = pedsDeMat(item.tipo, item.matId);
+      const tienePedido = peds.length>0;
+      const pedidosHtml = peds.map(p=>`
+        <div style="font-size:11px;color:var(--accent);margin-top:2px;display:flex;align-items:center;gap:4px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+          ${p.num} · ${p.pendiente.toLocaleString('es-ES')} ${p.unit}${p.fechaEst?` · llega ${p.fechaEst}`:''}
+        </div>`).join('');
       const diasTxt = item.diasHasta===null?'Sin consumo activo':item.diasHasta===0?'¡Agotado!':item.diasHasta===1?'Se acaba hoy':`Se acaba en ${item.diasHasta} día${item.diasHasta!==1?'s':''}`;
       return `
-      <div style="background:var(--sidebar);border:1px solid rgba(240,136,62,.4);border-radius:var(--rl);padding:14px 16px;">
+      <div style="background:var(--sidebar);border:1px solid ${tienePedido?'rgba(88,166,255,.5)':'rgba(240,136,62,.4)'};${tienePedido?'box-shadow:0 0 0 1px rgba(88,166,255,.2);':''}border-radius:var(--rl);padding:14px 16px;">
         <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">${item.tipo==='pale'?'Palé':item.tipo==='caja'?'Caja':'Auxiliar'}</div>
         <div style="font-size:14px;font-weight:500;color:var(--text);margin-top:2px;">${item.nombre}</div>
         <div style="margin-top:10px;font-size:13px;font-weight:600;color:var(--alert);">⏱ ${diasTxt}</div>
@@ -2015,6 +2035,7 @@ async function renderDashboard(){
           <span style="color:var(--text2);">Necesario: <strong style="color:var(--text);">${item.necesario.toLocaleString('es-ES')}</strong></span>
         </div>
         <div style="margin-top:6px;font-size:12px;color:var(--alert);">Déficit: −${item.deficit.toLocaleString('es-ES')}</div>
+        ${tienePedido?`<div style="border-top:1px solid var(--accent-dim);margin-top:8px;padding-top:6px;">${pedidosHtml}</div>`:''}
       </div>`;
     }).join('')}
     </div>`;
@@ -2028,6 +2049,7 @@ async function renderDashboard(){
       <th>Material</th><th>Tipo</th>
       <th style="text-align:right;">Stock</th>
       <th style="text-align:right;">Se acaba en</th>
+      <th>Pedido</th>
     </tr></thead><tbody>
     ${[...deficitItems,...okItems].map(item=>{
       const dias = item.diasHasta;
@@ -2037,11 +2059,16 @@ async function renderDashboard(){
       else if(dias<=3){ diasHtml=`${dias}d`; diasColor='var(--alert)'; }
       else if(dias<=7){ diasHtml=`${dias}d`; diasColor='var(--alert-dim);filter:brightness(2)'; }
       else { diasHtml=`${dias}d`; diasColor='var(--success)'; }
+      const peds = pedsDeMat(item.tipo, item.matId);
+      const pedHtml = peds.length
+        ? peds.map(p=>`<div style="font-size:11px;color:var(--accent);">${p.num}${p.fechaEst?` · ${p.fechaEst}`:''}</div>`).join('')
+        : '<span style="color:var(--text3);font-size:11px;">—</span>';
       return `<tr>
         <td style="font-weight:500;">${item.nombre}</td>
         <td class="td-muted">${item.tipo==='pale'?'Palé':item.tipo==='caja'?'Caja':'Auxiliar'}</td>
         <td style="text-align:right;">${item.stock.toLocaleString('es-ES')}</td>
         <td style="text-align:right;font-weight:600;color:${diasColor};">${diasHtml}</td>
+        <td>${pedHtml}</td>
       </tr>`;
     }).join('')}
     </tbody></table></div>`;
@@ -2974,10 +3001,11 @@ async function renderGantt(){
 }
 
 async function renderPlanResumen(ordenes, refs){
-  const pales = (await dbGet('pales'));
-  const cajas = (await dbGet('cajas'));
-  const auxs  = (await dbGet('aux'));
-  const conteos = (await dbGet('conteos'));
+  const pales   = await dbGet('pales');
+  const cajas   = await dbGet('cajas');
+  const auxs    = await dbGet('aux');
+  const conteos = await dbGet('conteos');
+  const pedidos = await dbGet('pedidos');
 
   function stockOf(tipo, matId){
     const last = [...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId)
@@ -3018,6 +3046,18 @@ async function renderPlanResumen(ordenes, refs){
       nec[k].necesario += numPales*a.qty;
     });
   });
+
+  // pedidos activos por material
+  const pedidosActivos = pedidos.filter(p=>p.estado==='pendiente'||p.estado==='parcial');
+  function pedidosDeMateria(tipo, matId){
+    return pedidosActivos.filter(p=>
+      p.tipo===tipo && p.lineas.some(l=>l.matId===matId && l.cantidad-l.recibido>0)
+    ).map(p=>{
+      const linea = p.lineas.find(l=>l.matId===matId);
+      const pendiente = linea ? linea.cantidad - linea.recibido : 0;
+      return {num:p.num, pendiente, unit:linea?.unit||'ud', fechaEst:p.fechaEst||null};
+    });
+  }
 
   const items = Object.values(nec);
   if(!items.length){ document.getElementById('plan-resumen').innerHTML=''; return; }
@@ -3060,20 +3100,30 @@ async function renderPlanResumen(ordenes, refs){
     const diff = n.stock - n.necesario;
     const ok = diff>=0;
     const dias = diasHastaAgotamiento(n);
+    const pedsMat = pedidosDeMateria(n.tipo, n.matId);
+    const tienePedido = pedsMat.length > 0;
+
+    const pedidosHtml = pedsMat.map(p=>`
+      <div class="nec-pedido-line">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
+        ${p.num} · ${p.pendiente.toLocaleString('es-ES')} ${p.unit}${p.fechaEst?` · llega ${p.fechaEst}`:''}
+      </div>`).join('');
+
     const diasHtml = dias !== null ? `
       <div class="nec-row" style="margin-top:2px;">
         <span>Se acaba en</span>
-        <span class="nec-val ${dias<=3?'deficit':dias<=7?'':''}" style="${dias<=3?'color:var(--alert)':dias<=7?'color:var(--alert-dim);filter:brightness(1.5)':'color:var(--text2)'}">
+        <span class="nec-val" style="${dias<=3?'color:var(--alert)':dias<=7?'color:#F0883E':'color:var(--text2)'}">
           ${dias===0?'¡Hoy!':dias===1?'1 día':`${dias} días`}
         </span>
       </div>` : '';
 
-    return `<div class="nec-card${ok?'':' deficit'}">
+    return `<div class="nec-card${ok?'':' deficit'}${tienePedido?' pedido':''}">
       <div class="nec-label">${n.tipo==='pale'?'Palé':n.tipo==='caja'?'Caja':'Auxiliar'}</div>
       <div class="nec-name">${n.nombre}</div>
       <div class="nec-row"><span>Necesario</span><span class="nec-val">${n.necesario.toLocaleString('es-ES')} ${n.unit}</span></div>
       <div class="nec-row"><span>En stock</span><span class="nec-val">${n.stock.toLocaleString('es-ES')} ${n.unit}</span></div>
       ${diasHtml}
+      ${tienePedido?`<div style="border-top:1px solid var(--accent-dim);padding-top:6px;margin-top:6px;">${pedidosHtml}</div>`:''}
       <div class="nec-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:4px;">
         <span>${ok?'Disponible':'Déficit'}</span>
         <span class="nec-val ${ok?'ok':'deficit'}">${ok?'+':''}${diff.toLocaleString('es-ES')} ${n.unit}</span>
