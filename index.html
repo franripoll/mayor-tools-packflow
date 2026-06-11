@@ -2234,9 +2234,20 @@ async function suggestLineas(){
   const conteos = await dbGet('conteos');
   const ordenes = await dbGet('ordenes');
   const refs    = await dbGet('refs');
+  const pedidos = await dbGet('pedidos');
   const opts    = await getMaterialOptions(tipo);
 
   function stockOf(matId){ const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0]; return last?last.cantidad:0; }
+
+  // cantidad pendiente de recibir en pedidos activos por material
+  function pendienteEnPedidos(matId){
+    return pedidos
+      .filter(p=>(p.estado==='pendiente'||p.estado==='parcial')&&p.tipo===tipo)
+      .reduce((sum,p)=>{
+        const l=p.lineas.find(x=>x.matId===matId);
+        return sum+(l?l.cantidad-l.recibido:0);
+      },0);
+  }
 
   const nec = {};
   ordenes.forEach(o=>{
@@ -2253,10 +2264,11 @@ async function suggestLineas(){
   for(const o of opts){
     const necesario=nec[o.id]||0;
     const stock=stockOf(o.id);
-    const deficit=necesario-stock;
-    if(deficit>0){ await addPedLinea({matId:o.id,cantidad:deficit}); added++; }
+    const pendiente=pendienteEnPedidos(o.id);
+    const deficit=necesario-stock-pendiente; // descuenta lo ya pedido
+    if(deficit>0){ await addPedLinea({matId:o.id,cantidad:Math.ceil(deficit)}); added++; }
   }
-  if(!added) showToast('No hay déficit detectado para este tipo de material');
+  if(!added) showToast('No hay déficit sin cubrir — ya tienes pedidos suficientes');
 }
 
 async function savePedido(){
