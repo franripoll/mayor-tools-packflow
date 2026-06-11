@@ -2940,36 +2940,39 @@ async function renderGantt(){
       const ax = auxs.find(x=>x.id===a.auxId);
       if(ax) addConsumo('aux', a.auxId, ax.nombre, a.qty);
     });
+
+    // registrar qué filas (índices en sorted) usan este material
+    const rowIdx = sorted.findIndex(x=>x.id===o.id);
+    if(rowIdx>=0){
+      if(ref.cajaId){ const k='caja_'+ref.cajaId; if(materialConsumo[k]) { materialConsumo[k].rows=materialConsumo[k].rows||new Set(); materialConsumo[k].rows.add(rowIdx); } }
+      (ref.auxiliares||[]).forEach(a=>{ const k='aux_'+a.auxId; if(materialConsumo[k]){ materialConsumo[k].rows=materialConsumo[k].rows||new Set(); materialConsumo[k].rows.add(rowIdx); } });
+    }
   });
 
-  // Para cada material, encontrar el día de agotamiento
-  // Simulación día a día DESDE HOY, consumiendo solo en días con producción activa
   const AGOT_COLORS = ['#F0883E','#D2A8FF','#79C0FF','#56D364','#FF7B72','#FFA657','#A5D6FF','#7EE787'];
   const agotamientos = [];
   Object.values(materialConsumo).forEach((m,idx)=>{
+    const color = AGOT_COLORS[idx%AGOT_COLORS.length];
+    const rows = m.rows ? [...m.rows].sort((a,b)=>a-b) : null; // null = full height (palés)
+
+    const pushAgot = (iso) => {
+      const dDate = new Date(iso+'T00:00:00');
+      const offset = Math.round((dDate-_ganttStart)/(1000*60*60*24));
+      if(offset>=0&&offset<totalDays)
+        agotamientos.push({offset,nombre:m.nombre,tipo:m.tipo,fecha:iso,color,rows});
+    };
+
     if(m.stockActual <= 0){
-      // ya sin stock — buscar primer día con consumo
       const primero = Object.keys(m.consumoPorDia).sort().find(iso=>iso>=today.toISOString().slice(0,10));
-      if(primero){
-        const offset = Math.round((new Date(primero+'T00:00:00')-_ganttStart)/(1000*60*60*24));
-        if(offset>=0&&offset<totalDays)
-          agotamientos.push({offset,nombre:m.nombre,tipo:m.tipo,fecha:primero,color:AGOT_COLORS[idx%AGOT_COLORS.length]});
-      }
+      if(primero) pushAgot(primero);
       return;
     }
-    // simular desde hoy en adelante
     const todayISO = today.toISOString().slice(0,10);
     const diasFuturos = Object.keys(m.consumoPorDia).filter(iso=>iso>=todayISO).sort();
     let stockRestante = m.stockActual;
     for(const iso of diasFuturos){
       stockRestante -= m.consumoPorDia[iso];
-      if(stockRestante <= 0){
-        const dDate = new Date(iso+'T00:00:00');
-        const offset = Math.round((dDate-_ganttStart)/(1000*60*60*24));
-        if(offset>=0&&offset<totalDays)
-          agotamientos.push({offset,nombre:m.nombre,tipo:m.tipo,fecha:iso,color:AGOT_COLORS[idx%AGOT_COLORS.length]});
-        break;
-      }
+      if(stockRestante <= 0){ pushAgot(iso); break; }
     }
   });
 
@@ -3013,10 +3016,20 @@ async function renderGantt(){
   const todayOffset = Math.round((today-_ganttStart)/(1000*60*60*24))*DAY_W;
   const showTodayLine = todayOffset>=0 && todayOffset<=totalDays*DAY_W;
 
-  // agotamiento lines — cada una con su color
+  // agotamiento lines — palés: línea completa; cajas/aux: solo en sus filas
+  const ROW_H = 56; // debe coincidir con gantt-row height
   const agotamientoLinesHtml = agotamientos.map(ag=>{
     const left = ag.offset * DAY_W;
-    return `<div style="position:absolute;left:${left}px;top:0;bottom:0;width:2px;background:${ag.color};opacity:.9;z-index:3;pointer-events:none;"></div>`;
+    if(!ag.rows || ag.tipo==='pale'){
+      // línea completa de arriba a abajo
+      return `<div style="position:absolute;left:${left}px;top:0;bottom:0;width:2px;background:${ag.color};opacity:.9;z-index:3;pointer-events:none;"></div>`;
+    } else {
+      // líneas solo en las filas que usan este material
+      return ag.rows.map(rowIdx=>{
+        const top = rowIdx * ROW_H;
+        return `<div style="position:absolute;left:${left}px;top:${top}px;height:${ROW_H}px;width:2px;background:${ag.color};opacity:.9;z-index:3;pointer-events:none;"></div>`;
+      }).join('');
+    }
   }).join('');
 
   // Leyenda externa
