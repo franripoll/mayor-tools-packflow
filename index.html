@@ -2023,6 +2023,13 @@ async function renderDashboard(){
   document.getElementById('dash-deficit').textContent = deficitCount>0?deficitCount+' material'+(deficitCount>1?'es':''):'OK';
   document.getElementById('dash-deficit').className = 'stat-value '+(deficitCount>0?'alert':'success');
 
+  // Ordenar por días hasta agotamiento (antes se acaba → primero)
+  alertItems.sort((a,b)=>{
+    const da = a.diasHasta===null ? 99999 : a.diasHasta;
+    const db = b.diasHasta===null ? 99999 : b.diasHasta;
+    return da - db;
+  });
+
   // stats cajas y palés (total stock)
   const totalCajas = cajas.reduce((s,c)=>s+stockOf('caja',c.id),0);
   const totalPales  = pales.reduce((s,p)=>s+stockOf('pale',p.id),0);
@@ -3139,6 +3146,15 @@ async function renderPlanResumen(ordenes, refs){
 
   const items = Object.values(nec);
   if(!items.length){ document.getElementById('plan-resumen').innerHTML=''; return; }
+
+  // Ordenar por días hasta agotamiento (antes se acaba → primero)
+  items.sort((a,b)=>{
+    const da = diasHastaAgotamiento(a); 
+    const db = diasHastaAgotamiento(b);
+    const va = da===null ? 99999 : da;
+    const vb = db===null ? 99999 : db;
+    return va - vb;
+  });
 
   // Calcular días hasta agotamiento simulando día a día
   const today = new Date(); today.setHours(0,0,0,0);
