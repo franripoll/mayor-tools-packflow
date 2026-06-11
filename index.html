@@ -3144,24 +3144,11 @@ async function renderPlanResumen(ordenes, refs){
     });
   }
 
-  const items = Object.values(nec);
-  if(!items.length){ document.getElementById('plan-resumen').innerHTML=''; return; }
-
-  // Precalcular días hasta agotamiento y ordenar
-  items.forEach(n => { n._dias = diasHastaAgotamiento(n); });
-  items.sort((a,b)=>{
-    const va = a._dias===null ? 99999 : a._dias;
-    const vb = b._dias===null ? 99999 : b._dias;
-    return va - vb;
-  });
-
   // Calcular días hasta agotamiento simulando día a día
   const today = new Date(); today.setHours(0,0,0,0);
 
   function diasHastaAgotamiento(n){
     if(n.stock <= 0) return 0;
-
-    // Construir mapa de consumo diario por fecha ISO
     const consumoPorDia = {};
 
     ordenes.forEach(o=>{
@@ -3216,6 +3203,17 @@ async function renderPlanResumen(ordenes, refs){
     }
     return null; // stock suficiente para toda la planificación
   }
+
+  const items = Object.values(nec);
+  if(!items.length){ document.getElementById('plan-resumen').innerHTML=''; return; }
+
+  // Precalcular días y ordenar: antes se acaba → primero
+  items.forEach(n => { n._dias = diasHastaAgotamiento(n); });
+  items.sort((a,b)=>{
+    const va = a._dias===null ? 99999 : a._dias;
+    const vb = b._dias===null ? 99999 : b._dias;
+    return va - vb;
+  });
 
   const cardsHtml = items.map(n=>{
     const diff = n.stock - n.necesario;
