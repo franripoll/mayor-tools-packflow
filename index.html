@@ -3147,12 +3147,11 @@ async function renderPlanResumen(ordenes, refs){
   const items = Object.values(nec);
   if(!items.length){ document.getElementById('plan-resumen').innerHTML=''; return; }
 
-  // Ordenar por días hasta agotamiento (antes se acaba → primero)
+  // Precalcular días hasta agotamiento y ordenar
+  items.forEach(n => { n._dias = diasHastaAgotamiento(n); });
   items.sort((a,b)=>{
-    const da = diasHastaAgotamiento(a); 
-    const db = diasHastaAgotamiento(b);
-    const va = da===null ? 99999 : da;
-    const vb = db===null ? 99999 : db;
+    const va = a._dias===null ? 99999 : a._dias;
+    const vb = b._dias===null ? 99999 : b._dias;
     return va - vb;
   });
 
@@ -3221,7 +3220,7 @@ async function renderPlanResumen(ordenes, refs){
   const cardsHtml = items.map(n=>{
     const diff = n.stock - n.necesario;
     const ok = diff>=0;
-    const dias = diasHastaAgotamiento(n);
+    const dias = n._dias;
     const pedsMat = pedidosDeMateria(n.tipo, n.matId);
     const tienePedido = pedsMat.length > 0;
 
