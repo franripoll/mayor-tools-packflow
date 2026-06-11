@@ -2998,36 +2998,70 @@ async function renderGantt(){
     </div>`;
   }).join('');
 
-  // rows
-  const rowsLabel = sorted.map((o,idx)=>{
-    const ref = refs.find(r=>r.id===o.refId);
-    const color = GANTT_COLORS[idx%GANTT_COLORS.length];
-    const isActive = o.inicio<=today.toISOString().slice(0,10) && o.fin>=today.toISOString().slice(0,10);
+  // Agrupar órdenes por referencia — misma ref = misma fila
+  const refGroups = {}; // refId → {ref, orders[], color, idx}
+  let groupIdx = 0;
+  sorted.forEach(o=>{
+    if(!refGroups[o.refId]){
+      refGroups[o.refId] = {
+        ref: refs.find(r=>r.id===o.refId),
+        orders: [],
+        color: GANTT_COLORS[groupIdx%GANTT_COLORS.length],
+        idx: groupIdx++
+      };
+    }
+    refGroups[o.refId].orders.push(o);
+  });
+  const groups = Object.values(refGroups);
+  const todayISO = today.toISOString().slice(0,10);
+
+  // rows labels — una por grupo
+  const rowsLabel = groups.map(g=>{
+    const isActive = g.orders.some(o=>o.inicio<=todayISO&&o.fin>=todayISO);
+    const totalPzas = g.orders.reduce((s,o)=>s+o.cantidad,0);
     return `<div class="gantt-label-row">
-      <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;${isActive?'box-shadow:0 0 0 2px rgba(255,255,255,.15)':''}"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:${g.color};flex-shrink:0;${isActive?'box-shadow:0 0 0 2px rgba(255,255,255,.15)':''}"></div>
       <div>
-        <div class="gantt-ref-name">${ref?.nombre||'—'}</div>
-        <div class="gantt-ref-sub">${o.cantidad.toLocaleString('es-ES')} pzas · ${o.dias}d</div>
+        <div class="gantt-ref-name">${g.ref?.nombre||'—'}</div>
+        <div class="gantt-ref-sub">${totalPzas.toLocaleString('es-ES')} pzas · ${g.orders.length} orden${g.orders.length!==1?'es':''}</div>
       </div>
     </div>`;
   }).join('');
+
+  // Actualizar rows en agotamientos para que usen índice de grupo
+  // (cajas/aux ahora se mapean al índice del grupo, no de la orden)
+  agotamientos.forEach(ag=>{
+    if(ag.rows){
+      // convertir índices de orden a índices de grupo
+      const groupIndices = new Set();
+      [...ag.rows].forEach(orderIdx=>{
+        const o = sorted[orderIdx];
+        if(o) groupIndices.add(refGroups[o.refId]?.idx??0);
+      });
+      ag.rows = [...groupIndices].sort((a,b)=>a-b);
+    }
+  });
 
   // today line position
   const todayOffset = Math.round((today-_ganttStart)/(1000*60*60*24))*DAY_W;
   const showTodayLine = todayOffset>=0 && todayOffset<=totalDays*DAY_W;
 
-  // agotamiento lines — palés: línea completa; cajas/aux: solo en sus filas
-  const ROW_H = 56; // debe coincidir con gantt-row height
+  // agotamiento lines — palés: sólida; cajas: discontinua; aux: punteada
+  const ROW_H = 56;
   const agotamientoLinesHtml = agotamientos.map(ag=>{
     const left = ag.offset * DAY_W;
+    const lineStyle = ag.tipo==='pale'
+      ? `background:${ag.color};`
+      : ag.tipo==='caja'
+        ? `background:repeating-linear-gradient(to bottom,${ag.color} 0px,${ag.color} 6px,transparent 6px,transparent 10px);`
+        : `background:repeating-linear-gradient(to bottom,${ag.color} 0px,${ag.color} 2px,transparent 2px,transparent 6px);`;
+
     if(!ag.rows || ag.tipo==='pale'){
-      // línea completa de arriba a abajo
-      return `<div style="position:absolute;left:${left}px;top:0;bottom:0;width:2px;background:${ag.color};opacity:.9;z-index:3;pointer-events:none;"></div>`;
+      return `<div style="position:absolute;left:${left}px;top:0;bottom:0;width:2px;${lineStyle}opacity:.9;z-index:3;pointer-events:none;"></div>`;
     } else {
-      // líneas solo en las filas que usan este material
       return ag.rows.map(rowIdx=>{
         const top = rowIdx * ROW_H;
-        return `<div style="position:absolute;left:${left}px;top:${top}px;height:${ROW_H}px;width:2px;background:${ag.color};opacity:.9;z-index:3;pointer-events:none;"></div>`;
+        return `<div style="position:absolute;left:${left}px;top:${top}px;height:${ROW_H}px;width:2px;${lineStyle}opacity:.9;z-index:3;pointer-events:none;"></div>`;
       }).join('');
     }
   }).join('');
@@ -3042,8 +3076,13 @@ async function renderGantt(){
       const dias = Math.round((dDate-today)/(1000*60*60*24));
       const diasTxt = dias===0?'hoy':dias===1?'mañana':`en ${dias}d`;
       const tipoLabel = ag.tipo==='pale'?'Palé':ag.tipo==='caja'?'Caja':'Aux';
+      const lineIndicator = ag.tipo==='pale'
+        ? `<div style="width:3px;height:16px;background:${ag.color};border-radius:2px;flex-shrink:0;"></div>`
+        : ag.tipo==='caja'
+          ? `<div style="width:3px;height:16px;background:repeating-linear-gradient(to bottom,${ag.color} 0,${ag.color} 4px,transparent 4px,transparent 7px);flex-shrink:0;"></div>`
+          : `<div style="width:3px;height:16px;background:repeating-linear-gradient(to bottom,${ag.color} 0,${ag.color} 2px,transparent 2px,transparent 5px);flex-shrink:0;"></div>`;
       return `<div style="display:inline-flex;align-items:center;gap:6px;background:${ag.color}18;border:1px solid ${ag.color}55;border-radius:var(--r);padding:5px 10px;font-size:12px;">
-        <div style="width:3px;height:16px;background:${ag.color};border-radius:2px;flex-shrink:0;"></div>
+        ${lineIndicator}
         <span style="color:var(--text2);">${tipoLabel}:</span>
         <span style="color:var(--text);font-weight:500;">${ag.nombre}</span>
         <span style="color:${ag.color};font-weight:600;">${diasTxt} · ${ag.fecha}</span>
@@ -3054,32 +3093,33 @@ async function renderGantt(){
     leyendaEl.style.display='none';
   }
 
-  const rowsTimeline = sorted.map((o,idx)=>{
-    const color = GANTT_COLORS[idx%GANTT_COLORS.length];
-    const ref = refs.find(r=>r.id===o.refId);
-
-    const startDate = new Date(o.inicio+'T00:00:00');
-    const endDateO  = new Date(o.fin+'T00:00:00');
-    const startOff  = Math.round((startDate-_ganttStart)/(1000*60*60*24));
-    const endOff    = Math.round((endDateO-_ganttStart)/(1000*60*60*24));
-
-    const barLeft  = Math.max(0,startOff)*DAY_W;
-    const barRight = Math.min(totalDays-1,endOff)*DAY_W+DAY_W;
-    const barW     = barRight-barLeft;
-    const visible  = barW>0 && barLeft<totalDays*DAY_W && barRight>0;
-
+  const rowsTimeline = groups.map(g=>{
     const bgDays = days.map(d=>{
       const isToday = d.toDateString()===today.toDateString();
       const isWknd  = d.getDay()===0||d.getDay()===6;
       return `<div class="gantt-row-day${isToday?' today':''}${isWknd?' weekend':''}" style="width:${DAY_W}px;min-width:${DAY_W}px;"></div>`;
     }).join('');
 
+    // barras de todas las órdenes de este grupo
+    const barsHtml = g.orders.map(o=>{
+      const startDate = new Date(o.inicio+'T00:00:00');
+      const endDateO  = new Date(o.fin+'T00:00:00');
+      const startOff  = Math.round((startDate-_ganttStart)/(1000*60*60*24));
+      const endOff    = Math.round((endDateO-_ganttStart)/(1000*60*60*24));
+      const barLeft   = Math.max(0,startOff)*DAY_W;
+      const barRight  = Math.min(totalDays-1,endOff)*DAY_W+DAY_W;
+      const barW      = barRight-barLeft;
+      const visible   = barW>0 && barLeft<totalDays*DAY_W && barRight>0;
+      if(!visible) return '';
+      return `<div class="gantt-bar" style="left:${barLeft}px;width:${barW}px;background:${g.color}22;border:1px solid ${g.color}55;color:${g.color};" onclick="openOrdenModal('${o.id}')" title="${g.ref?.nombre||''} · ${o.inicio} → ${o.fin} · ${o.cantidad.toLocaleString('es-ES')} pzas">
+        ${barW>60?g.ref?.nombre||'':''}
+      </div>`;
+    }).join('');
+
     return `<div class="gantt-row" style="width:${totalDays*DAY_W}px;">
       <div class="gantt-row-bg">${bgDays}</div>
       ${showTodayLine?`<div class="gantt-today-line" style="left:${todayOffset}px;"></div>`:''}
-      ${visible?`<div class="gantt-bar" style="left:${barLeft}px;width:${barW}px;background:${color}22;border:1px solid ${color}55;color:${color};" onclick="openOrdenModal('${o.id}')" title="${ref?.nombre||''} · ${o.inicio} → ${o.fin}">
-        ${barW>60?ref?.nombre||'':''}
-      </div>`:''}
+      ${barsHtml}
     </div>`;
   }).join('');
 
