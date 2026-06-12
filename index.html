@@ -1184,9 +1184,10 @@
   .ped-fecha { font-size:11px; color:var(--text3); }
   .ped-obs-text { font-size:12px; color:var(--text2); font-style:italic; }
   .ped-actions { margin-left:auto; display:flex; gap:6px; }
-  .ped-table { width:100%; border-collapse:collapse; }
-  .ped-table th { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.07em; padding:8px 18px; text-align:left; background:var(--surface2); border-bottom:1px solid var(--border); }
-  .ped-table td { padding:9px 18px; font-size:12px; color:var(--text); border-bottom:1px solid var(--border); }
+  .ped-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+  .ped-table th { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:.07em; padding:8px 18px; text-align:left; background:var(--surface2); border-bottom:1px solid var(--border); }
+  .ped-table td { padding:10px 18px; font-size:13px; color:var(--text); border-bottom:1px solid var(--border); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ped-table tr:last-child td { border-bottom:none; }
   .ped-table tr:last-child td { border-bottom:none; }
   .ped-foot { padding:10px 18px; display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); background:var(--surface2); }
   .ped-foot-label { font-size:11px; color:var(--text3); }
@@ -2509,8 +2510,13 @@ async function renderPedidos(){
           </button>
         </div>
       </div>
-      <table class="ped-table">
-        <thead><tr><th>Artículo</th><th>Descripción</th><th style="text-align:right;">Pedido</th><th style="text-align:right;">Pendiente</th></tr></thead>
+      <table class="ped-table" style="table-layout:fixed;">
+        <thead><tr>
+          <th style="width:140px;">Artículo</th>
+          <th>Descripción</th>
+          <th style="width:130px;text-align:right;">Pedido</th>
+          <th style="width:130px;text-align:right;">Pendiente</th>
+        </tr></thead>
         <tbody>${lineasHtml}</tbody>
       </table>
       ${recHtml}
