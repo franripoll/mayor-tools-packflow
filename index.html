@@ -2476,10 +2476,14 @@ async function editPedido(id){
           <div class="edit-linea-art">${l.articulo||'—'}</div>
         </div>
         <div style="text-align:right;">
-          <div class="edit-linea-stats">Pedido: <strong>${l.cantidad.toLocaleString('es-ES')} ${l.unit}</strong></div>
           <div class="edit-linea-stats">Recibido: <strong style="color:var(--success);">${recibido.toLocaleString('es-ES')} ${l.unit}</strong></div>
           <div class="edit-linea-stats">Pendiente: <strong style="color:${pendiente>0?'var(--alert)':'var(--success)'};">${pendiente.toLocaleString('es-ES')} ${l.unit}</strong></div>
         </div>
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">Cantidad pedida</label>
+        <input type="number" class="form-input" id="elinea-qty-${i}" value="${l.cantidad}" min="${recibido||1}" />
+        <div class="form-hint">Mínimo: lo ya recibido (${recibido} ${l.unit})</div>
       </div>
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Entregas previstas</div>
       <div id="entregas-linea-${i}">${entregasHtml}</div>
@@ -2530,14 +2534,18 @@ async function saveEditPedido(){
 
   pedido.obs = obs;
 
-  // collect entregas por línea
+  // collect entregas y cantidad por línea
   pedido.lineas.forEach((l,i)=>{
+    // cantidad editada
+    const newQty = parseFloat(document.getElementById(`elinea-qty-${i}`)?.value);
+    if(newQty && newQty >= (l.recibido||0)) pedido.lineas[i].cantidad = newQty;
+
     const wrap = document.getElementById(`entregas-linea-${i}`);
     if(!wrap) return;
     const rows = wrap.querySelectorAll('.entrega-row');
     const entregas = [];
     rows.forEach(row=>{
-      const rowId = row.id; // entrega-i-ei
+      const rowId = row.id;
       const parts = rowId.split('-');
       const ei = parts[parts.length-1];
       const fecha = document.getElementById(`edate-${i}-${ei}`)?.value;
