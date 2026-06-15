@@ -843,6 +843,37 @@
   </div>
 </div>
 
+<!-- MODAL EDITAR PEDIDO (fechas de entrega por línea) -->
+<div class="modal-backdrop" id="modal-edit-pedido">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-edit-pedido-title">Editar pedido</span>
+      <button class="modal-close" onclick="closeEditPedidoModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-ped-id" />
+
+      <!-- Observaciones -->
+      <div class="form-group">
+        <label class="form-label">Observaciones</label>
+        <textarea class="form-textarea" id="edit-ped-obs" rows="2"></textarea>
+      </div>
+
+      <div class="form-divider"></div>
+
+      <!-- Líneas con entregas previstas -->
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;">Entregas previstas por línea</div>
+      <div id="edit-ped-lineas"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEditPedidoModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEditPedido()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL NUEVO PEDIDO -->
 <div class="modal-backdrop" id="modal-pedido">
   <div class="modal" style="max-width:580px;">
@@ -1183,6 +1214,14 @@
   .mob-material-stock { font-size:22px; font-weight:700; color:var(--accent); }
   .mob-material-unit { font-size:12px; color:var(--text2); text-align:right; }
   .mob-material-date { font-size:11px; color:var(--text3); margin-top:2px; }
+
+  /* Edit pedido delivery lines */
+  .edit-linea-wrap { background:var(--surface2); border-radius:var(--r); padding:14px; margin-bottom:12px; }
+  .edit-linea-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .edit-linea-nombre { font-size:13px; font-weight:500; color:var(--text); }
+  .edit-linea-art { font-size:11px; color:var(--text3); font-family:monospace; }
+  .edit-linea-stats { font-size:12px; color:var(--text2); }
+  .entrega-row { display:grid; grid-template-columns:1fr 130px 32px; gap:8px; align-items:center; margin-bottom:6px; }
 
   /* PEDIDOS */
   .ped-card { background:var(--sidebar); border:1px solid var(--border); border-radius:var(--rl); margin-bottom:12px; overflow:hidden; }
@@ -2411,23 +2450,109 @@ async function editPedido(id){
   const p = pedidos.find(x=>x.id===id);
   if(!p) return;
 
-  // populate modal
-  document.getElementById('ped-tipo').value = p.tipo;
-  await onPedTipoChange();
-  document.getElementById('ped-fecha-est').value = p.fechaEst||'';
-  document.getElementById('ped-obs').value = p.obs||'';
-  document.getElementById('modal-pedido-title').textContent = `Editar ${p.num}`;
+  document.getElementById('edit-ped-id').value = id;
+  document.getElementById('modal-edit-pedido-title').textContent = `Editar ${p.num}`;
+  document.getElementById('edit-ped-obs').value = p.obs||'';
 
-  // set edit id
-  document.getElementById('ped-edit-id').value = id;
+  // Render líneas con entregas previstas
+  const lineasEl = document.getElementById('edit-ped-lineas');
+  lineasEl.innerHTML = p.lineas.map((l,i)=>{
+    const recibido = l.recibido||0;
+    const pendiente = l.cantidad - recibido;
+    const entregas = l.entregas||[];
+    const entregasHtml = entregas.map((e,ei)=>`
+      <div class="entrega-row" id="entrega-${i}-${ei}">
+        <input type="date" class="form-input" id="edate-${i}-${ei}" value="${e.fecha||''}" />
+        <input type="number" class="form-input" id="eqty-${i}-${ei}" placeholder="Cantidad" min="1" value="${e.cantidad||''}" />
+        <button class="aux-line-remove" onclick="removeEntrega(${i},${ei})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>`).join('');
 
-  // reload lineas
-  document.getElementById('ped-lineas').innerHTML='';
-  for(const l of p.lineas){
-    await addPedLinea({matId:l.matId, cantidad:l.cantidad});
-  }
+    return `<div class="edit-linea-wrap" data-linea="${i}">
+      <div class="edit-linea-header">
+        <div>
+          <div class="edit-linea-nombre">${l.nombre}</div>
+          <div class="edit-linea-art">${l.articulo||'—'}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="edit-linea-stats">Pedido: <strong>${l.cantidad.toLocaleString('es-ES')} ${l.unit}</strong></div>
+          <div class="edit-linea-stats">Recibido: <strong style="color:var(--success);">${recibido.toLocaleString('es-ES')} ${l.unit}</strong></div>
+          <div class="edit-linea-stats">Pendiente: <strong style="color:${pendiente>0?'var(--alert)':'var(--success)'};">${pendiente.toLocaleString('es-ES')} ${l.unit}</strong></div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;">Entregas previstas</div>
+      <div id="entregas-linea-${i}">${entregasHtml}</div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="addEntrega(${i})">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>
+        Añadir entrega prevista
+      </button>
+    </div>`;
+  }).join('');
 
-  document.getElementById('modal-pedido').classList.add('open');
+  document.getElementById('modal-edit-pedido').classList.add('open');
+}
+
+function closeEditPedidoModal(){
+  document.getElementById('modal-edit-pedido').classList.remove('open');
+}
+document.getElementById('modal-edit-pedido').addEventListener('click',function(e){
+  if(e.target===this) closeEditPedidoModal();
+});
+
+function addEntrega(lineaIdx){
+  const wrap = document.getElementById(`entregas-linea-${lineaIdx}`);
+  const ei = wrap.children.length;
+  const div = document.createElement('div');
+  div.className = 'entrega-row';
+  div.id = `entrega-${lineaIdx}-${ei}`;
+  div.innerHTML = `
+    <input type="date" class="form-input" id="edate-${lineaIdx}-${ei}" />
+    <input type="number" class="form-input" id="eqty-${lineaIdx}-${ei}" placeholder="Cantidad" min="1" />
+    <button class="aux-line-remove" onclick="removeEntrega(${lineaIdx},${ei})">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>`;
+  wrap.appendChild(div);
+  div.querySelector('input[type=date]').focus();
+}
+
+function removeEntrega(lineaIdx, ei){
+  const el = document.getElementById(`entrega-${lineaIdx}-${ei}`);
+  if(el) el.remove();
+}
+
+async function saveEditPedido(){
+  const id = document.getElementById('edit-ped-id').value;
+  const obs = document.getElementById('edit-ped-obs').value.trim();
+  const pedidos = await dbGet('pedidos');
+  const pedido = JSON.parse(JSON.stringify(pedidos.find(p=>p.id===id)));
+  if(!pedido) return;
+
+  pedido.obs = obs;
+
+  // collect entregas por línea
+  pedido.lineas.forEach((l,i)=>{
+    const wrap = document.getElementById(`entregas-linea-${i}`);
+    if(!wrap) return;
+    const rows = wrap.querySelectorAll('.entrega-row');
+    const entregas = [];
+    rows.forEach(row=>{
+      const rowId = row.id; // entrega-i-ei
+      const parts = rowId.split('-');
+      const ei = parts[parts.length-1];
+      const fecha = document.getElementById(`edate-${i}-${ei}`)?.value;
+      const cantidad = parseFloat(document.getElementById(`eqty-${i}-${ei}`)?.value);
+      if(fecha||cantidad>0) entregas.push({fecha:fecha||'',cantidad:cantidad||0});
+    });
+    pedido.lineas[i].entregas = entregas;
+  });
+
+  setLoading(true);
+  await dbUpdate('pedidos', id, {obs:pedido.obs, lineas:pedido.lineas});
+  setLoading(false);
+  closeEditPedidoModal();
+  await renderPedidos();
+  showToast('Pedido actualizado');
 }
 
 async function eliminarPedido(id, num){
@@ -2480,12 +2605,22 @@ async function renderPedidos(){
   content.innerHTML=filtered.map(p=>{
     const isActive=p.estado==='pendiente'||p.estado==='parcial';
     const lineasHtml=p.lineas.map(l=>{
-      const pendiente=l.cantidad-l.recibido;
+      const pendiente=l.cantidad-(l.recibido||0);
+      const entregas = (l.entregas||[]).filter(e=>e.fecha||e.cantidad>0);
+      const entregasHtml = entregas.map(e=>`
+        <div style="font-size:11px;color:var(--accent);margin-top:3px;display:flex;align-items:center;gap:4px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          ${e.fecha?e.fecha:'Sin fecha'}${e.cantidad>0?` · ${e.cantidad.toLocaleString('es-ES')} ${l.unit}`:''}
+        </div>`).join('');
       return `<tr>
-        <td style="font-family:monospace;font-size:11px;color:var(--text2);">${l.articulo||'—'}</td>
-        <td>${l.nombre}</td>
-        <td style="text-align:right;font-weight:500;">${l.cantidad.toLocaleString('es-ES')} ${l.unit}</td>
-        <td style="text-align:right;color:${pendiente>0?'var(--alert)':'var(--success)'};">${pendiente>0?pendiente.toLocaleString('es-ES')+' '+l.unit:'✓'}</td>
+        <td style="font-family:monospace;font-size:11px;color:var(--text2);width:140px;">${l.articulo||'—'}</td>
+        <td>
+          ${l.nombre}
+          ${entregasHtml}
+        </td>
+        <td style="text-align:right;font-weight:500;width:110px;">${l.cantidad.toLocaleString('es-ES')} ${l.unit}</td>
+        <td style="text-align:right;width:110px;color:var(--success);">${(l.recibido||0)>0?(l.recibido||0).toLocaleString('es-ES')+' '+l.unit:'—'}</td>
+        <td style="text-align:right;width:110px;color:${pendiente>0?'var(--alert)':'var(--success)'};">${pendiente>0?pendiente.toLocaleString('es-ES')+' '+l.unit:'✓'}</td>
       </tr>`;
     }).join('');
 
@@ -2521,8 +2656,9 @@ async function renderPedidos(){
         <thead><tr>
           <th style="width:140px;">Artículo</th>
           <th>Descripción</th>
-          <th style="width:130px;text-align:right;">Pedido</th>
-          <th style="width:130px;text-align:right;">Pendiente</th>
+          <th style="width:110px;text-align:right;">Pedido</th>
+          <th style="width:110px;text-align:right;">Recibido</th>
+          <th style="width:110px;text-align:right;">Pendiente</th>
         </tr></thead>
         <tbody>${lineasHtml}</tbody>
       </table>
