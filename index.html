@@ -855,17 +855,17 @@
     <div class="modal-body">
       <input type="hidden" id="edit-ped-id" />
 
+      <!-- Líneas con entregas previstas -->
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;">Entregas previstas por línea</div>
+      <div id="edit-ped-lineas"></div>
+
+      <div class="form-divider"></div>
+
       <!-- Observaciones -->
       <div class="form-group">
         <label class="form-label">Observaciones</label>
         <textarea class="form-textarea" id="edit-ped-obs" rows="2"></textarea>
       </div>
-
-      <div class="form-divider"></div>
-
-      <!-- Líneas con entregas previstas -->
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;">Entregas previstas por línea</div>
-      <div id="edit-ped-lineas"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeEditPedidoModal()">Cancelar</button>
