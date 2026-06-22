@@ -1129,6 +1129,36 @@
     <div class="modal-body">
       <input type="hidden" id="ref-edit-id" />
 
+      <!-- Línea de producto -->
+      <div class="form-group">
+        <label class="form-label">Línea de producto <span class="req">*</span></label>
+        <div style="display:flex;gap:10px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--text);">
+            <input type="radio" name="ref-linea" id="ref-linea-mayor" value="Mayor" checked onchange="toggleLineaFields()" style="accent-color:var(--accent);" />
+            Mayor
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--text);">
+            <input type="radio" name="ref-linea" id="ref-linea-tempio" value="Tempio" onchange="toggleLineaFields()" style="accent-color:var(--accent);" />
+            Tempio
+          </label>
+        </div>
+      </div>
+
+      <!-- Formato y medidas (solo Tempio) -->
+      <div id="ref-tempio-fields" style="display:none;">
+        <div class="form-row form-row-2">
+          <div class="form-group">
+            <label class="form-label">Formato <span class="req">*</span></label>
+            <input type="text" class="form-input" id="ref-formato" placeholder="Ej: Peldaño, Rodapié, Baldosa..." list="ref-formato-list" />
+            <datalist id="ref-formato-list"></datalist>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Medidas <span class="req">*</span></label>
+            <input type="text" class="form-input" id="ref-medidas" placeholder="Ej: 33x120, 8cm, 45x45..." />
+          </div>
+        </div>
+      </div>
+
       <!-- Datos básicos -->
       <div class="form-row form-row-2">
         <div class="form-group">
@@ -3904,6 +3934,15 @@ async function openRefModal(id){
     document.getElementById('ref-cajas-pale').value = r.cajasPale||'';
     document.getElementById('ref-piezas-caja').value = r.piezasCaja||'';
     document.getElementById('ref-piezas-pale').value = r.piezasPale||'';
+    // linea
+    if(r.linea==='Tempio'){
+      document.getElementById('ref-linea-tempio').checked=true;
+    } else {
+      document.getElementById('ref-linea-mayor').checked=true;
+    }
+    document.getElementById('ref-formato').value = r.formato||'';
+    document.getElementById('ref-medidas').value = r.medidas||'';
+    toggleLineaFields();
     toggleCajaField();
     document.getElementById('ref-aux-lines').innerHTML='';
     (r.auxiliares||[]).forEach(a=>addAuxLine(a));
@@ -3931,6 +3970,10 @@ function resetRefModal(){
   document.getElementById('ref-cajas-pale').value='';
   document.getElementById('ref-piezas-caja').value='';
   document.getElementById('ref-piezas-pale').value='';
+  document.getElementById('ref-linea-mayor').checked=true;
+  document.getElementById('ref-formato').value='';
+  document.getElementById('ref-medidas').value='';
+  toggleLineaFields();
   document.getElementById('ref-aux-lines').innerHTML='';
   toggleCajaField();
 }
@@ -3938,6 +3981,18 @@ function resetRefModal(){
 document.getElementById('modal-ref').addEventListener('click',function(e){
   if(e.target===this) closeRefModal();
 });
+
+function toggleLineaFields(){
+  const isTempio = document.getElementById('ref-linea-tempio').checked;
+  document.getElementById('ref-tempio-fields').style.display = isTempio?'block':'none';
+  // populate formato datalist with existing formatos
+  if(isTempio){
+    dbGet('refs').then(refs=>{
+      const formatos = [...new Set(refs.filter(r=>r.linea==='Tempio'&&r.formato).map(r=>r.formato))].sort();
+      document.getElementById('ref-formato-list').innerHTML = formatos.map(f=>`<option value="${f}">`).join('');
+    });
+  }
+}
 
 function toggleCajaField(){
   const val = document.getElementById('ref-lleva-caja').value;
@@ -3993,9 +4048,15 @@ async function saveRef(){
     if(auxId && qty>0) auxLines.push({auxId, qty});
   });
 
+  const linea = document.querySelector('input[name="ref-linea"]:checked')?.value||'Mayor';
+  const formato = linea==='Tempio' ? document.getElementById('ref-formato').value.trim() : '';
+  const medidas = linea==='Tempio' ? document.getElementById('ref-medidas').value.trim() : '';
+  if(linea==='Tempio' && !formato){ showToast('Introduce el formato','error'); return; }
+  if(linea==='Tempio' && !medidas){ showToast('Introduce las medidas','error'); return; }
+
   const id = document.getElementById('ref-edit-id').value;
   const articulo = document.getElementById('ref-articulo').value.trim();
-  const row = {nombre,articulo,proddia,llevaCaja,paleId:paleId||null,cajaId:cajaId||null,cajasPale,piezasCaja,piezasPale,auxiliares:auxLines};
+  const row = {nombre,articulo,proddia,llevaCaja,paleId:paleId||null,cajaId:cajaId||null,cajasPale,piezasCaja,piezasPale,auxiliares:auxLines,linea,formato,medidas};
 
   setLoading(true);
   if(id){
@@ -4041,10 +4102,10 @@ async function deleteRef(id){
 }
 
 async function renderRefs(){
-  const refs  = (await dbGet('refs'));
-  const pales = (await dbGet('pales'));
-  const cajas = (await dbGet('cajas'));
-  const auxs  = (await dbGet('aux'));
+  const refs  = await dbGet('refs');
+  const pales = await dbGet('pales');
+  const cajas = await dbGet('cajas');
+  const auxs  = await dbGet('aux');
   const tbody = document.getElementById('ref-tbody');
   const empty = document.getElementById('ref-empty');
   const wrap  = document.getElementById('ref-table-wrap');
@@ -4052,25 +4113,32 @@ async function renderRefs(){
   if(!refs.length){ wrap.style.display='none'; empty.style.display='flex'; return; }
   wrap.style.display='block'; empty.style.display='none';
 
-  tbody.innerHTML = refs.map(r=>{
+  // Separar Mayor y Tempio
+  const mayor   = refs.filter(r=>r.linea!=='Tempio');
+  const tempio  = refs.filter(r=>r.linea==='Tempio');
+
+  // Agrupar Tempio por formato
+  const tempioGroups = {};
+  tempio.forEach(r=>{
+    const f = r.formato||'Sin formato';
+    if(!tempioGroups[f]) tempioGroups[f]=[];
+    tempioGroups[f].push(r);
+  });
+
+  function refRow(r){
     const pale = pales.find(p=>p.id===r.paleId);
     const caja = cajas.find(c=>c.id===r.cajaId);
-
-    // receta pills
     const pills = [];
     if(r.llevaCaja && caja) pills.push(`${r.piezasCaja} pzas/caja · ${r.cajasPale} cajas/palé · ${caja.nombre}`);
     if(!r.llevaCaja && r.piezasPale) pills.push(`${r.piezasPale} pzas/palé`);
     (r.auxiliares||[]).forEach(a=>{
-      const aux = auxs.find(x=>x.id===a.auxId);
+      const aux=auxs.find(x=>x.id===a.auxId);
       if(aux) pills.push(`${a.qty} ${aux.unidad} ${aux.nombre}`);
     });
-
     return `<tr>
-      <td><strong>${r.nombre}</strong>${r.articulo?`<div class="td-muted" style="font-size:11px;margin-top:2px;">art. ${r.articulo}</div>`:''}</td>
+      <td><strong>${r.nombre}</strong>${r.medidas?`<span style="font-size:11px;color:var(--text3);margin-left:6px;">${r.medidas}</span>`:''}</td>
       <td class="td-muted">${pale?pale.nombre:'<span style="color:var(--alert);font-size:11px;">Sin asignar</span>'}</td>
-      <td>${r.llevaCaja
-        ? (caja?`<span class="badge badge-accent">${caja.nombre}</span>`:'<span style="color:var(--alert);font-size:11px;">Sin asignar</span>')
-        : '<span class="badge badge-neutral">Sin caja</span>'}</td>
+      <td>${r.llevaCaja?(caja?`<span class="badge badge-accent">${caja.nombre}</span>`:'<span style="color:var(--alert);font-size:11px;">Sin asignar</span>'):'<span class="badge badge-neutral">Sin caja</span>'}</td>
       <td class="td-muted">${r.proddia.toLocaleString('es-ES')} pzas/día</td>
       <td><div class="receta-pills">${pills.map(p=>`<span class="receta-pill">${p}</span>`).join('')||'<span style="color:var(--text3);font-size:11px;">Solo palé</span>'}</div></td>
       <td><div class="td-actions">
@@ -4080,7 +4148,30 @@ async function renderRefs(){
         </button>
       </div></td>
     </tr>`;
-  }).join('');
+  }
+
+  function sectionHeader(label, color='var(--accent)'){
+    return `<tr><td colspan="6" style="padding:14px 16px 6px;background:var(--surface2);font-size:11px;font-weight:600;color:${color};text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid var(--border);">${label}</td></tr>`;
+  }
+
+  let html = '';
+
+  // Mayor
+  if(mayor.length){
+    html += sectionHeader('Mayor','var(--text2)');
+    html += mayor.map(refRow).join('');
+  }
+
+  // Tempio por formato
+  if(tempio.length){
+    html += sectionHeader('Tempio','var(--accent)');
+    Object.keys(tempioGroups).sort().forEach(formato=>{
+      html += `<tr><td colspan="6" style="padding:8px 16px 4px 28px;font-size:11px;color:var(--text2);font-weight:500;background:var(--bg);border-bottom:1px solid var(--border);">— ${formato}</td></tr>`;
+      html += tempioGroups[formato].map(refRow).join('');
+    });
+  }
+
+  tbody.innerHTML = html;
 }
 
 
