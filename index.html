@@ -3215,19 +3215,25 @@ async function renderGantt(){
     </div>`;
   }).join('');
 
-  // Agrupar órdenes por referencia — misma ref = misma fila
-  const refGroups = {}; // refId → {ref, orders[], color, idx}
+  // Agrupar órdenes: por obra si la tienen, por referencia si no
+  // Clave de grupo: 'obra:NOMBRE' o 'ref:REFID'
+  const refGroups = {};
   let groupIdx = 0;
   sorted.forEach(o=>{
-    if(!refGroups[o.refId]){
-      refGroups[o.refId] = {
+    const groupKey = (o.tipo==='cliente' && o.obra) ? `obra:${o.obra}` : `ref:${o.refId}`;
+    if(!refGroups[groupKey]){
+      refGroups[groupKey] = {
+        key: groupKey,
+        isObra: groupKey.startsWith('obra:'),
+        obra: o.obra||'',
+        cliente: o.cliente||'',
         ref: refs.find(r=>r.id===o.refId),
         orders: [],
         color: GANTT_COLORS[groupIdx%GANTT_COLORS.length],
         idx: groupIdx++
       };
     }
-    refGroups[o.refId].orders.push(o);
+    refGroups[groupKey].orders.push(o);
   });
   const groups = Object.values(refGroups);
   const todayISO = today.toISOString().slice(0,10);
@@ -3236,17 +3242,26 @@ async function renderGantt(){
   const rowsLabel = groups.map(g=>{
     const isActive = g.orders.some(o=>o.inicio<=todayISO&&o.fin>=todayISO);
     const totalPzas = g.orders.reduce((s,o)=>s+o.cantidad,0);
-    // check if any order has cliente info
-    const clienteOrders = g.orders.filter(o=>o.tipo==='cliente'&&(o.cliente||o.obra));
-    const clienteInfo = clienteOrders.length>0
-      ? [...new Set(clienteOrders.map(o=>[o.cliente,o.obra].filter(Boolean).join(' · ')))].join(', ')
-      : '';
+
+    let labelName, labelSub, labelExtra='';
+    if(g.isObra){
+      // Grupo por obra — mostrar obra como título, cliente y refs como subtítulo
+      labelName = g.obra;
+      const clienteStr = g.cliente ? `${g.cliente} · ` : '';
+      const refs_used = [...new Set(g.orders.map(o=>refs.find(r=>r.id===o.refId)?.nombre).filter(Boolean))];
+      labelSub = `${clienteStr}${refs_used.join(', ')}`;
+      labelExtra = `<div style="font-size:10px;color:var(--accent);margin-top:1px;">📋 Obra</div>`;
+    } else {
+      labelName = g.ref?.nombre||'—';
+      labelSub = `${totalPzas.toLocaleString('es-ES')} pzas · ${g.orders.length} orden${g.orders.length!==1?'es':''}`;
+    }
+
     return `<div class="gantt-label-row">
       <div style="width:8px;height:8px;border-radius:50%;background:${g.color};flex-shrink:0;${isActive?'box-shadow:0 0 0 2px rgba(255,255,255,.15)':''}"></div>
       <div>
-        <div class="gantt-ref-name">${g.ref?.nombre||'—'}</div>
-        ${clienteInfo?`<div style="font-size:10px;color:var(--accent);margin-top:1px;">📋 ${clienteInfo}</div>`:''}
-        <div class="gantt-ref-sub">${totalPzas.toLocaleString('es-ES')} pzas · ${g.orders.length} orden${g.orders.length!==1?'es':''}</div>
+        ${labelExtra}
+        <div class="gantt-ref-name">${labelName}</div>
+        <div class="gantt-ref-sub">${labelSub}</div>
       </div>
     </div>`;
   }).join('');
@@ -3334,8 +3349,12 @@ async function renderGantt(){
       const barW      = barRight-barLeft;
       const visible   = barW>0 && barLeft<totalDays*DAY_W && barRight>0;
       if(!visible) return '';
-      return `<div class="gantt-bar" style="left:${barLeft}px;width:${barW}px;background:${g.color}22;border:1px solid ${g.color}55;color:${g.color};" onclick="openOrdenModal('${o.id}')" title="${g.ref?.nombre||''} · ${o.inicio} → ${o.fin} · ${o.cantidad.toLocaleString('es-ES')} pzas${o.tipo==='cliente'?'\n'+[o.cliente,o.obra].filter(Boolean).join(' · '):''}">
-        ${barW>60?(o.tipo==='cliente'&&(o.cliente||o.obra)?[o.cliente,o.obra].filter(Boolean).join(' · '):g.ref?.nombre||''):''}
+      const barLabel = g.isObra
+        ? (refs.find(r=>r.id===o.refId)?.nombre||'')
+        : (o.tipo==='cliente'&&(o.cliente||o.obra)?[o.cliente,o.obra].filter(Boolean).join(' · '):g.ref?.nombre||'');
+
+      return `<div class="gantt-bar" style="left:${barLeft}px;width:${barW}px;background:${g.color}22;border:1px solid ${g.color}55;color:${g.color};" onclick="openOrdenModal('${o.id}')" title="${g.ref?.nombre||''} · ${o.inicio} → ${o.fin} · ${o.cantidad.toLocaleString('es-ES')} pzas${g.isObra?' · '+g.obra:''}">
+        ${barW>60?barLabel:''}
       </div>`;
     }).join('');
 
