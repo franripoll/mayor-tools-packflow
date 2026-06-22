@@ -983,6 +983,31 @@
           <label class="form-label">Fecha de inicio <span class="req">*</span></label>
           <input type="date" class="form-input" id="orden-inicio" oninput="calcOrdenFin()" />
         </div>
+        <div class="form-group">
+          <label class="form-label">Tipo de producción</label>
+          <div style="display:flex;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--text);">
+              <input type="radio" name="orden-tipo" id="orden-tipo-stock" value="stock" checked onchange="toggleClienteFields()" style="accent-color:var(--accent);" />
+              Stock
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--text);">
+              <input type="radio" name="orden-tipo" id="orden-tipo-cliente" value="cliente" onchange="toggleClienteFields()" style="accent-color:var(--accent);" />
+              Cliente
+            </label>
+          </div>
+        </div>
+        <div id="orden-cliente-fields" style="display:none;">
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Cliente</label>
+              <input type="text" class="form-input" id="orden-cliente" placeholder="Nombre del cliente" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Obra</label>
+              <input type="text" class="form-input" id="orden-obra" placeholder="Nombre de la obra" />
+            </div>
+          </div>
+        </div>
         <div id="orden-calc" style="display:none;background:var(--surface2);border-radius:var(--r);padding:12px 14px;font-size:12px;color:var(--text2);line-height:1.8;margin-top:4px;">
           <div id="orden-calc-text"></div>
         </div>
@@ -1009,6 +1034,10 @@
             <div>
               <div style="font-size:11px;color:var(--text2);margin-bottom:2px;">Fin estimado</div>
               <div style="font-size:13px;color:var(--text);" id="orden-edit-fin">—</div>
+            </div>
+            <div id="orden-edit-cliente-row" style="display:none;grid-column:1/-1;">
+              <div style="font-size:11px;color:var(--text2);margin-bottom:2px;">Cliente · Obra</div>
+              <div style="font-size:13px;color:var(--accent);" id="orden-edit-cliente-info">—</div>
             </div>
           </div>
         </div>
@@ -2809,6 +2838,15 @@ async function openOrdenModal(id){
     document.getElementById('orden-edit-inicio').textContent = o.inicio;
     document.getElementById('orden-edit-fin').textContent = o.fin;
 
+    // show cliente/obra if applicable
+    const clienteRow = document.getElementById('orden-edit-cliente-row');
+    if(o.tipo==='cliente' && (o.cliente||o.obra)){
+      document.getElementById('orden-edit-cliente-info').textContent = [o.cliente,o.obra].filter(Boolean).join(' · ');
+      clienteRow.style.display='block';
+    } else {
+      clienteRow.style.display='none';
+    }
+
     window._ordenEditData = o;
     document.getElementById('orden-incremento').value='';
     document.getElementById('orden-edit-inicio-new').value='';
@@ -2825,7 +2863,10 @@ async function openOrdenModal(id){
 
     document.getElementById('orden-mode-create').style.display='block';
     document.getElementById('orden-mode-edit').style.display='none';
-
+    document.getElementById('orden-tipo-stock').checked=true;
+    document.getElementById('orden-cliente').value='';
+    document.getElementById('orden-obra').value='';
+    toggleClienteFields();
     calcOrdenFin();
   }
   document.getElementById('modal-orden').classList.add('open');
@@ -2837,6 +2878,11 @@ function closeOrdenModal(){
 document.getElementById('modal-orden').addEventListener('click',function(e){
   if(e.target===this) closeOrdenModal();
 });
+
+function toggleClienteFields(){
+  const isCliente = document.getElementById('orden-tipo-cliente').checked;
+  document.getElementById('orden-cliente-fields').style.display = isCliente?'block':'none';
+}
 
 function onOrdenRefChange(){ calcOrdenFin(); }
 
@@ -2969,8 +3015,12 @@ async function saveOrden(){
     finDate.setDate(finDate.getDate()+dias-1);
     const fin = finDate.toISOString().slice(0,10);
 
+    const tipo = document.querySelector('input[name="orden-tipo"]:checked')?.value||'stock';
+    const cliente = tipo==='cliente' ? document.getElementById('orden-cliente').value.trim() : '';
+    const obra    = tipo==='cliente' ? document.getElementById('orden-obra').value.trim()    : '';
+
     setLoading(true);
-    await dbInsert('ordenes',{id:uid(),refId,cantidad,inicio,fin,dias});
+    await dbInsert('ordenes',{id:uid(),refId,cantidad,inicio,fin,dias,tipo,cliente,obra});
     setLoading(false);
     showToast('Orden añadida');
   }
@@ -3186,10 +3236,16 @@ async function renderGantt(){
   const rowsLabel = groups.map(g=>{
     const isActive = g.orders.some(o=>o.inicio<=todayISO&&o.fin>=todayISO);
     const totalPzas = g.orders.reduce((s,o)=>s+o.cantidad,0);
+    // check if any order has cliente info
+    const clienteOrders = g.orders.filter(o=>o.tipo==='cliente'&&(o.cliente||o.obra));
+    const clienteInfo = clienteOrders.length>0
+      ? [...new Set(clienteOrders.map(o=>[o.cliente,o.obra].filter(Boolean).join(' · ')))].join(', ')
+      : '';
     return `<div class="gantt-label-row">
       <div style="width:8px;height:8px;border-radius:50%;background:${g.color};flex-shrink:0;${isActive?'box-shadow:0 0 0 2px rgba(255,255,255,.15)':''}"></div>
       <div>
         <div class="gantt-ref-name">${g.ref?.nombre||'—'}</div>
+        ${clienteInfo?`<div style="font-size:10px;color:var(--accent);margin-top:1px;">📋 ${clienteInfo}</div>`:''}
         <div class="gantt-ref-sub">${totalPzas.toLocaleString('es-ES')} pzas · ${g.orders.length} orden${g.orders.length!==1?'es':''}</div>
       </div>
     </div>`;
@@ -3278,8 +3334,8 @@ async function renderGantt(){
       const barW      = barRight-barLeft;
       const visible   = barW>0 && barLeft<totalDays*DAY_W && barRight>0;
       if(!visible) return '';
-      return `<div class="gantt-bar" style="left:${barLeft}px;width:${barW}px;background:${g.color}22;border:1px solid ${g.color}55;color:${g.color};" onclick="openOrdenModal('${o.id}')" title="${g.ref?.nombre||''} · ${o.inicio} → ${o.fin} · ${o.cantidad.toLocaleString('es-ES')} pzas">
-        ${barW>60?g.ref?.nombre||'':''}
+      return `<div class="gantt-bar" style="left:${barLeft}px;width:${barW}px;background:${g.color}22;border:1px solid ${g.color}55;color:${g.color};" onclick="openOrdenModal('${o.id}')" title="${g.ref?.nombre||''} · ${o.inicio} → ${o.fin} · ${o.cantidad.toLocaleString('es-ES')} pzas${o.tipo==='cliente'?'\n'+[o.cliente,o.obra].filter(Boolean).join(' · '):''}">
+        ${barW>60?(o.tipo==='cliente'&&(o.cliente||o.obra)?[o.cliente,o.obra].filter(Boolean).join(' · '):g.ref?.nombre||''):''}
       </div>`;
     }).join('');
 
