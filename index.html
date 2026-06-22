@@ -4000,6 +4000,21 @@ async function saveRef(){
   setLoading(true);
   if(id){
     await dbUpdate('refs',id,row);
+
+    // Recalcular fin y dias de todas las órdenes que usen esta referencia
+    const ordenes = await dbGet('ordenes');
+    const ordenesRef = ordenes.filter(o=>o.refId===id);
+    for(const o of ordenesRef){
+      const nuevosDias = Math.ceil(o.cantidad/proddia);
+      const finDate = new Date(o.inicio+'T00:00:00');
+      finDate.setDate(finDate.getDate()+nuevosDias-1);
+      const nuevoFin = finDate.toISOString().slice(0,10);
+      if(nuevosDias!==o.dias || nuevoFin!==o.fin){
+        await dbUpdate('ordenes',o.id,{dias:nuevosDias,fin:nuevoFin});
+      }
+    }
+    delete _cache['ordenes'];
+
     showToast('Referencia actualizada');
   } else {
     await dbInsert('refs',{id:uid(),...row});
@@ -4008,6 +4023,7 @@ async function saveRef(){
   setLoading(false);
   closeRefModal();
   await renderRefs();
+  await renderGantt();
 }
 
 async function editRef(id){ openRefModal(id); }
