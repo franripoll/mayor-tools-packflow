@@ -3105,11 +3105,11 @@ async function renderGantt(){
   empty.style.display='none';
 
   // sort by start
+  const today = new Date(); today.setHours(0,0,0,0);
   const todayStr = today.toISOString().slice(0,10);
   const sorted = [...ordenes]
     .filter(o=>o.fin>=todayStr)
     .sort((a,b)=>a.inicio.localeCompare(b.inicio));
-  const today = new Date(); today.setHours(0,0,0,0);
   const DOW = ['D','L','M','X','J','V','S'];
 
   // build days array
