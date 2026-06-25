@@ -1451,6 +1451,8 @@ function fromDb(table, r){
   }
   if(table==='ordenes'){
     m.refId = m.ref_id; delete m.ref_id;
+    // normalizar tipo: si viene null/vacío pero tiene cliente u obra, es 'cliente'
+    if(!m.tipo) m.tipo = (m.cliente||m.obra) ? 'cliente' : 'stock';
   }
   if(table==='conteos'){
     m.materialId = m.material_id; delete m.material_id;
@@ -2870,7 +2872,7 @@ async function openOrdenModal(id){
 
     // show cliente/obra if applicable
     const clienteRow = document.getElementById('orden-edit-cliente-row');
-    if(o.tipo==='cliente' && (o.cliente||o.obra)){
+    if((o.tipo==='cliente' || o.cliente || o.obra) && (o.cliente||o.obra)){
       document.getElementById('orden-edit-cliente-info').textContent = [o.cliente,o.obra].filter(Boolean).join(' · ');
       clienteRow.style.display='block';
     } else {
@@ -3196,14 +3198,14 @@ async function renderGantt(){
   const refGroupsTemp = {};
   let groupIdxTemp = 0;
   sorted.forEach(o=>{
-    const groupKey = (o.tipo==='cliente' && o.obra) ? `obra:${o.obra}` : `ref:${o.refId}`;
+    const groupKey = ((o.tipo==='cliente' || o.obra) && o.obra) ? `obra:${o.obra}` : `ref:${o.refId}`;
     if(!refGroupsTemp[groupKey]) refGroupsTemp[groupKey] = { idx: groupIdxTemp++ };
   });
 
   // Ahora registrar qué filas (índices de grupo) usan cada material
   sorted.forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
-    const groupKey = (o.tipo==='cliente' && o.obra) ? `obra:${o.obra}` : `ref:${o.refId}`;
+    const groupKey = ((o.tipo==='cliente' || o.obra) && o.obra) ? `obra:${o.obra}` : `ref:${o.refId}`;
     const gIdx = refGroupsTemp[groupKey]?.idx;
     if(gIdx===undefined) return;
     if(ref.cajaId){ const k='caja_'+ref.cajaId; if(materialConsumo[k]){ materialConsumo[k].rows=materialConsumo[k].rows||new Set(); materialConsumo[k].rows.add(gIdx); } }
@@ -3264,7 +3266,7 @@ async function renderGantt(){
   const refGroups = {};
   let groupIdx = 0;
   sorted.forEach(o=>{
-    const groupKey = (o.tipo==='cliente' && o.obra) ? `obra:${o.obra}` : `ref:${o.refId}`;
+    const groupKey = ((o.tipo==='cliente' || o.obra) && o.obra) ? `obra:${o.obra}` : `ref:${o.refId}`;
     if(!refGroups[groupKey]){
       refGroups[groupKey] = {
         key: groupKey,
@@ -3385,7 +3387,7 @@ async function renderGantt(){
       if(!visible) return '';
       const barLabel = g.isObra
         ? (refs.find(r=>r.id===o.refId)?.nombre||'')
-        : (o.tipo==='cliente'&&(o.cliente||o.obra)?[o.cliente,o.obra].filter(Boolean).join(' · '):g.ref?.nombre||'');
+        : ((o.tipo==='cliente'||(o.cliente||o.obra))&&(o.cliente||o.obra)?[o.cliente,o.obra].filter(Boolean).join(' · '):g.ref?.nombre||'');
 
       return `<div class="gantt-bar" style="left:${barLeft}px;width:${barW}px;background:${g.color}22;border:1px solid ${g.color}55;color:${g.color};" onclick="openOrdenModal('${o.id}')" title="${g.ref?.nombre||''} · ${o.inicio} → ${o.fin} · ${o.cantidad.toLocaleString('es-ES')} pzas${g.isObra?' · '+g.obra:''}">
         ${barW>60?barLabel:''}
