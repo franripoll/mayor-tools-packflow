@@ -2113,7 +2113,7 @@ async function renderDashboard(){
 
   // Calcular necesidades totales vs stock → déficit
   const nec = {};
-  ordenes.forEach(o=>{
+  ordenes.filter(o=>o.fin>=todayISO).forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
     const {numCajas: numCajasD, numPales} = calcNecesidades(o, ref);
     if(ref.paleId){ nec['pale_'+ref.paleId]=(nec['pale_'+ref.paleId]||0)+numPales; }
