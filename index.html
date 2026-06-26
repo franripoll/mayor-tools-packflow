@@ -2128,7 +2128,7 @@ async function renderDashboard(){
         :ref.proddia/(ref.piezasPale||ref.proddia);
       let consumoDia=0;
       if(tipo==='pale'&&ref.paleId===matId) consumoDia=palesPorDia;
-      if(tipo==='caja'&&ref.cajaId===matId) consumoDia=palesPorDia*(ref.cajasPale||0);
+      if(tipo==='caja'&&ref.cajaId===matId) consumoDia=ref.piezasCaja>0?ref.proddia/ref.piezasCaja:0;
       if(tipo==='aux'){ const a=(ref.auxiliares||[]).find(x=>x.auxId===matId); if(a) consumoDia=palesPorDia*a.qty; }
       if(consumoDia<=0) return;
       const msDay2=1000*60*60*24;
@@ -3219,7 +3219,20 @@ async function renderGantt(){
 
     if(ref.paleId) addConsumo('pale', ref.paleId, pales.find(p=>p.id===ref.paleId)?.nombre||'palé', 1);
     if(ref.llevaCaja && ref.cajaId && ref.piezasCaja>0){
-      addConsumo('caja', ref.cajaId, cajas.find(c=>c.id===ref.cajaId)?.nombre||'caja', ref.cajasPale);
+      // consumo diario de cajas = proddia / piezasCaja (independiente de palesPorDia)
+      const cajasPorDia = ref.proddia / ref.piezasCaja;
+      const cajaNombre = cajas.find(c=>c.id===ref.cajaId)?.nombre||'caja';
+      const k = 'caja_'+ref.cajaId;
+      if(!materialConsumo[k]){
+        materialConsumo[k] = { tipo:'caja', matId:ref.cajaId, nombre:cajaNombre, stockActual: stockOf('caja', ref.cajaId), consumoPorDia:{} };
+      }
+      const msDay = 1000*60*60*24;
+      const startMs = Date.UTC(parseInt(o.inicio.slice(0,4)),parseInt(o.inicio.slice(5,7))-1,parseInt(o.inicio.slice(8,10)));
+      const endMs   = Date.UTC(parseInt(o.fin.slice(0,4)),parseInt(o.fin.slice(5,7))-1,parseInt(o.fin.slice(8,10)));
+      for(let ms=startMs;ms<=endMs;ms+=msDay){
+        const iso=new Date(ms).toISOString().slice(0,10);
+        materialConsumo[k].consumoPorDia[iso]=(materialConsumo[k].consumoPorDia[iso]||0)+cajasPorDia;
+      }
     }
     (ref.auxiliares||[]).forEach(a=>{
       const ax = auxs.find(x=>x.id===a.auxId);
@@ -3540,7 +3553,7 @@ async function renderPlanResumen(ordenes, refs){
 
       let consumoDia = 0;
       if(n.tipo==='pale' && ref.paleId===n.matId)  consumoDia = palesPorDia;
-      if(n.tipo==='caja' && ref.cajaId===n.matId)  consumoDia = palesPorDia * (ref.cajasPale||0);
+      if(n.tipo==='caja' && ref.cajaId===n.matId)  consumoDia = ref.piezasCaja>0 ? ref.proddia/ref.piezasCaja : 0;
       if(n.tipo==='aux'){
         const a = (ref.auxiliares||[]).find(x=>x.auxId===n.matId);
         if(a) consumoDia = palesPorDia * a.qty;
