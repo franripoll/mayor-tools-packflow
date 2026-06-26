@@ -243,6 +243,9 @@
       <span class="tb-title" id="topbar-title">Tipos de caja</span>
       <div class="tb-right">
         <span class="tb-date" id="topbar-date"></span>
+        <button onclick="refreshApp()" title="Actualizar" style="background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;border-radius:var(--r);display:flex;align-items:center;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--text2)'">
+          <svg id="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        </button>
         <div class="status-dot" id="status-dot-el"></div>
       </div>
     </div>
@@ -1527,6 +1530,36 @@ overlay.addEventListener('click',()=>{
   document.getElementById('topbar-date').textContent=
     d.toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'});
 })();
+
+// refresh
+async function refreshApp(){
+  // animate icon
+  const icon = document.getElementById('refresh-icon');
+  icon.style.transition='transform .6s ease';
+  icon.style.transform='rotate(360deg)';
+  setTimeout(()=>{ icon.style.transition='none'; icon.style.transform='rotate(0deg)'; },650);
+
+  // update date
+  document.getElementById('topbar-date').textContent =
+    new Date().toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'});
+
+  // clear all caches
+  Object.keys(_cache).forEach(k=>delete _cache[k]);
+
+  // re-render current page
+  const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+  if(activePage==='dashboard')    await renderDashboard();
+  if(activePage==='produccion')   await renderGantt();
+  if(activePage==='inventario')   await initInvView();
+  if(activePage==='pedidos')      await renderPedidos();
+  if(activePage==='consumo')      await renderConsumo();
+  if(activePage==='referencias')  await renderRefs();
+  if(activePage==='cajas')        await renderCajas();
+  if(activePage==='pales')        await renderPales();
+  if(activePage==='auxiliares')   await renderAux();
+
+  showToast('Actualizado');
+}
 
 // toast
 function showToast(msg,type=''){
