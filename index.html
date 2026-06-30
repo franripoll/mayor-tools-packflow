@@ -1496,6 +1496,35 @@ function calcNecesidades(orden, ref){
   return { numCajas, numPales };
 }
 
+// Consumo diario de un material concreto (tipo+matId) generado por una referencia
+// Única fuente de verdad usada en dashboard, planificación y Gantt
+function consumoDiarioMaterial(tipo, matId, ref){
+  const proddia = Number(ref.proddia)||0;
+  if(proddia<=0) return 0;
+  if(tipo==='pale'){
+    if(ref.paleId!==matId) return 0;
+    const piezasPale = ref.llevaCaja && ref.piezasCaja>0 && ref.cajasPale>0
+      ? Number(ref.piezasCaja)*Number(ref.cajasPale)
+      : Number(ref.piezasPale)||proddia;
+    return piezasPale>0 ? proddia/piezasPale : 0;
+  }
+  if(tipo==='caja'){
+    if(!ref.llevaCaja || ref.cajaId!==matId) return 0;
+    const piezasCaja = Number(ref.piezasCaja)||0;
+    return piezasCaja>0 ? proddia/piezasCaja : 0;
+  }
+  if(tipo==='aux'){
+    const a = (ref.auxiliares||[]).find(x=>x.auxId===matId);
+    if(!a) return 0;
+    const piezasPale = ref.llevaCaja && ref.piezasCaja>0 && ref.cajasPale>0
+      ? Number(ref.piezasCaja)*Number(ref.cajasPale)
+      : Number(ref.piezasPale)||proddia;
+    const palesPorDia = piezasPale>0 ? proddia/piezasPale : 0;
+    return palesPorDia * (Number(a.qty)||0);
+  }
+  return 0;
+}
+
 // ─────────────────────────────────────────
 // NAVEGACIÓN
 // ─────────────────────────────────────────
@@ -2135,16 +2164,9 @@ async function renderDashboard(){
     const consumoPorDiaDash = {};
     ordenes.forEach(o=>{
       const ref=refs.find(r=>r.id===o.refId); if(!ref) return;
-      const inicioDate=new Date(o.inicio+'T00:00:00');
       const finDate=new Date(o.fin+'T00:00:00');
       if(finDate<todayDate) return;
-      const palesPorDia=ref.piezasCaja>0&&ref.cajasPale>0
-        ?ref.proddia/ref.piezasCaja/ref.cajasPale
-        :ref.proddia/(ref.piezasPale||ref.proddia);
-      let consumoDia=0;
-      if(tipo==='pale'&&ref.paleId===matId) consumoDia=palesPorDia;
-      if(tipo==='caja'&&ref.cajaId===matId) consumoDia=ref.piezasCaja>0?ref.proddia/ref.piezasCaja:0;
-      if(tipo==='aux'){ const a=(ref.auxiliares||[]).find(x=>x.auxId===matId); if(a) consumoDia=palesPorDia*a.qty; }
+      const consumoDia = consumoDiarioMaterial(tipo, matId, ref);
       if(consumoDia<=0) return;
       const msDay2=1000*60*60*24;
       const startMs2=Date.UTC(parseInt(o.inicio.slice(0,4)),parseInt(o.inicio.slice(5,7))-1,parseInt(o.inicio.slice(8,10)));
@@ -3186,71 +3208,40 @@ async function renderGantt(){
   // consumo diario de un material = (material por palé) * (palés/día de esa ref)
   // palés/día = proddia / piezasCaja / cajasPale
 
-  const materialConsumo = {}; // matKey → {tipo, matId, nombre, stockActual, consumoDiario}
+  const materialConsumo = {}; // matKey → {tipo, matId, nombre, stockActual, consumoPorDia}
+
+  function registrarConsumo(tipo, matId, nombre, o, consumoDia){
+    if(consumoDia<=0) return;
+    const k = tipo+'_'+matId;
+    if(!materialConsumo[k]){
+      materialConsumo[k] = { tipo, matId, nombre, stockActual: stockOf(tipo, matId), consumoPorDia: {} };
+    }
+    const msDay = 1000*60*60*24;
+    const startMs = Date.UTC(parseInt(o.inicio.slice(0,4)),parseInt(o.inicio.slice(5,7))-1,parseInt(o.inicio.slice(8,10)));
+    const endMs   = Date.UTC(parseInt(o.fin.slice(0,4)),parseInt(o.fin.slice(5,7))-1,parseInt(o.fin.slice(8,10)));
+    for(let ms=startMs; ms<=endMs; ms+=msDay){
+      const iso = new Date(ms).toISOString().slice(0,10);
+      materialConsumo[k].consumoPorDia[iso] = (materialConsumo[k].consumoPorDia[iso]||0) + consumoDia;
+    }
+  }
 
   sorted.forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId);
     if(!ref) return;
-    const inicioDate = new Date(o.inicio+'T00:00:00');
-    const finDate    = new Date(o.fin+'T00:00:00');
+    const finDate = new Date(o.fin+'T00:00:00');
+    if(finDate < today) return; // solo órdenes activas o futuras
 
-    // palés por día de esta orden
-    const palesPorDia = ref.piezasCaja>0 && ref.cajasPale>0
-      ? ref.proddia / ref.piezasCaja / ref.cajasPale
-      : ref.proddia / (ref.piezasPale||ref.proddia);
-
-    // solo consideramos órdenes activas o futuras
-    if(finDate < today) return;
-
-    const addConsumo = (tipo, matId, nombre, cantPorPale) => {
-      const k = tipo+'_'+matId;
-      if(!materialConsumo[k]){
-        materialConsumo[k] = {
-          tipo, matId, nombre,
-          stockActual: stockOf(tipo, matId),
-          consumoPorDia: {}
-        };
-      }
-      // iterar días usando timestamps UTC para evitar problemas de zona horaria
-      const msDay = 1000*60*60*24;
-      const startMs = Date.UTC(
-        parseInt(o.inicio.slice(0,4)),
-        parseInt(o.inicio.slice(5,7))-1,
-        parseInt(o.inicio.slice(8,10))
-      );
-      const endMs = Date.UTC(
-        parseInt(o.fin.slice(0,4)),
-        parseInt(o.fin.slice(5,7))-1,
-        parseInt(o.fin.slice(8,10))
-      );
-      for(let ms = startMs; ms <= endMs; ms += msDay){
-        const d = new Date(ms);
-        const iso = d.toISOString().slice(0,10);
-        materialConsumo[k].consumoPorDia[iso] =
-          (materialConsumo[k].consumoPorDia[iso]||0) + palesPorDia * cantPorPale;
-      }
-    };
-
-    if(ref.paleId) addConsumo('pale', ref.paleId, pales.find(p=>p.id===ref.paleId)?.nombre||'palé', 1);
-    if(ref.llevaCaja && ref.cajaId && ref.piezasCaja>0){
-      // consumo diario de cajas = proddia / piezasCaja (independiente de palesPorDia)
-      const cajasPorDia = ref.proddia / ref.piezasCaja;
-      const cajaNombre = cajas.find(c=>c.id===ref.cajaId)?.nombre||'caja';
-      const k = 'caja_'+ref.cajaId;
-      if(!materialConsumo[k]){
-        materialConsumo[k] = { tipo:'caja', matId:ref.cajaId, nombre:cajaNombre, stockActual: stockOf('caja', ref.cajaId), consumoPorDia:{} };
-      }
-      const msDay = 1000*60*60*24;
-      const startMs = Date.UTC(parseInt(o.inicio.slice(0,4)),parseInt(o.inicio.slice(5,7))-1,parseInt(o.inicio.slice(8,10)));
-      const endMs   = Date.UTC(parseInt(o.fin.slice(0,4)),parseInt(o.fin.slice(5,7))-1,parseInt(o.fin.slice(8,10)));
-      for(let ms=startMs;ms<=endMs;ms+=msDay){
-        const iso=new Date(ms).toISOString().slice(0,10);
-        materialConsumo[k].consumoPorDia[iso]=(materialConsumo[k].consumoPorDia[iso]||0)+cajasPorDia;
-      }
+    if(ref.paleId){
+      const nombre = pales.find(p=>p.id===ref.paleId)?.nombre||'palé';
+      registrarConsumo('pale', ref.paleId, nombre, o, consumoDiarioMaterial('pale', ref.paleId, ref));
+    }
+    if(ref.llevaCaja && ref.cajaId){
+      const nombre = cajas.find(c=>c.id===ref.cajaId)?.nombre||'caja';
+      registrarConsumo('caja', ref.cajaId, nombre, o, consumoDiarioMaterial('caja', ref.cajaId, ref));
     }
     (ref.auxiliares||[]).forEach(a=>{
       const ax = auxs.find(x=>x.id===a.auxId);
-      if(ax) addConsumo('aux', a.auxId, ax.nombre, a.qty);
+      if(ax) registrarConsumo('aux', a.auxId, ax.nombre, o, consumoDiarioMaterial('aux', a.auxId, ref));
     });
   });
 
@@ -3552,21 +3543,10 @@ async function renderPlanResumen(ordenes, refs){
     ordenes.forEach(o=>{
       const ref = refs.find(r=>r.id===o.refId);
       if(!ref) return;
-      const inicioDate = new Date(o.inicio+'T00:00:00');
-      const finDate    = new Date(o.fin+'T00:00:00');
+      const finDate = new Date(o.fin+'T00:00:00');
       if(finDate < today) return; // orden ya terminada
 
-      const palesPorDia = ref.piezasCaja>0 && ref.cajasPale>0
-        ? ref.proddia / ref.piezasCaja / ref.cajasPale
-        : ref.proddia / (ref.piezasPale||ref.proddia);
-
-      let consumoDia = 0;
-      if(n.tipo==='pale' && ref.paleId===n.matId)  consumoDia = palesPorDia;
-      if(n.tipo==='caja' && ref.cajaId===n.matId)  consumoDia = ref.piezasCaja>0 ? ref.proddia/ref.piezasCaja : 0;
-      if(n.tipo==='aux'){
-        const a = (ref.auxiliares||[]).find(x=>x.auxId===n.matId);
-        if(a) consumoDia = palesPorDia * a.qty;
-      }
+      const consumoDia = consumoDiarioMaterial(n.tipo, n.matId, ref);
       if(consumoDia <= 0) return;
 
       // iterar días usando UTC para evitar problemas de zona horaria
