@@ -2177,7 +2177,7 @@ async function renderDashboard(){
       }
     });
     const diasFuturosDash=Object.keys(consumoPorDiaDash).filter(iso=>iso>=todayISO).sort();
-    let diasHasta=null;
+    let diasHasta = diasFuturosDash.length ? null : -1;
     if(diasFuturosDash.length){
       let sr=stock;
       for(const iso of diasFuturosDash){
@@ -2203,8 +2203,8 @@ async function renderDashboard(){
 
   // Ordenar por días hasta agotamiento (antes se acaba → primero)
   alertItems.sort((a,b)=>{
-    const da = a.diasHasta===null ? 99999 : a.diasHasta;
-    const db = b.diasHasta===null ? 99999 : b.diasHasta;
+    const da = (a.diasHasta===null||a.diasHasta===-1) ? 99999 : a.diasHasta;
+    const db = (b.diasHasta===null||b.diasHasta===-1) ? 99999 : b.diasHasta;
     return da - db;
   });
 
@@ -2250,7 +2250,7 @@ async function renderDashboard(){
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>
           ${p.num} · ${p.pendiente.toLocaleString('es-ES')} ${p.unit}${p.fechaEst?` · llega ${p.fechaEst}`:''}
         </div>`).join('');
-      const diasTxt = item.diasHasta===null?'Sin consumo activo':item.diasHasta===0?'¡Agotado!':item.diasHasta===1?'Se acaba hoy':`Se acaba en ${item.diasHasta} día${item.diasHasta!==1?'s':''}`;
+      const diasTxt = item.diasHasta===-1?'Sin consumo activo':item.diasHasta===null?'Stock suficiente':item.diasHasta===0?'¡Agotado!':item.diasHasta===1?'Se acaba hoy':`Se acaba en ${item.diasHasta} día${item.diasHasta!==1?'s':''}`;
       return `
       <div style="background:var(--sidebar);border:1px solid ${tienePedido?'rgba(88,166,255,.5)':'rgba(240,136,62,.4)'};${tienePedido?'box-shadow:0 0 0 1px rgba(88,166,255,.2);':''}border-radius:var(--rl);padding:14px 16px;">
         <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">${item.tipo==='pale'?'Palé':item.tipo==='caja'?'Caja':'Auxiliar'}</div>
@@ -2280,7 +2280,8 @@ async function renderDashboard(){
     ${[...deficitItems,...okItems].map(item=>{
       const dias = item.diasHasta;
       let diasHtml, diasColor;
-      if(dias===null){ diasHtml='—'; diasColor='var(--text3)'; }
+      if(dias===-1){ diasHtml='—'; diasColor='var(--text3)'; }
+      else if(dias===null){ diasHtml='Suficiente'; diasColor='var(--success)'; }
       else if(dias===0){ diasHtml='¡Hoy!'; diasColor='var(--alert)'; }
       else if(dias<=3){ diasHtml=`${dias}d`; diasColor='var(--alert)'; }
       else if(dias<=7){ diasHtml=`${dias}d`; diasColor='var(--alert-dim);filter:brightness(2)'; }
@@ -3547,9 +3548,6 @@ async function renderPlanResumen(ordenes, refs){
       if(finDate < today) return; // orden ya terminada
 
       const consumoDia = consumoDiarioMaterial(n.tipo, n.matId, ref);
-      if(window.__DEBUG_BPAR && n.nombre && n.nombre.includes('BPAR')){
-        console.log('[DEBUG]', n.nombre, 'orden de', ref.nombre, 'o.inicio=', o.inicio, 'o.fin=', o.fin, 'consumoDia=', consumoDia);
-      }
       if(consumoDia <= 0) return;
 
       // iterar días usando UTC para evitar problemas de zona horaria
@@ -3566,18 +3564,11 @@ async function renderPlanResumen(ordenes, refs){
       }
     });
 
-    if(window.__DEBUG_BPAR && n.nombre && n.nombre.includes('BPAR')){
-      console.log('[DEBUG] consumoPorDia FINAL para', n.nombre, '=', JSON.stringify(consumoPorDia));
-    }
-
-    // Si no hay consumo futuro, no hay agotamiento relevante
+    // Si no hay consumo futuro, no hay agotamiento relevante (-1 = sin consumo activo)
     const diasFuturos = Object.keys(consumoPorDia)
       .filter(iso=> iso >= today.toISOString().slice(0,10))
       .sort();
-    if(window.__DEBUG_BPAR && n.nombre && n.nombre.includes('BPAR')){
-      console.log('[DEBUG] diasFuturos para', n.nombre, '=', JSON.stringify(diasFuturos));
-    }
-    if(!diasFuturos.length) return null;
+    if(!diasFuturos.length) return -1; // sin consumo activo
 
     // Simular stock día a día desde hoy
     let stockRestante = n.stock;
@@ -3589,7 +3580,7 @@ async function renderPlanResumen(ordenes, refs){
         return Math.round((dAgot - today)/(1000*60*60*24));
       }
     }
-    return null; // stock suficiente para toda la planificación
+    return null; // hay consumo activo pero el stock alcanza para toda la planificación
   }
 
   const items = Object.values(nec);
@@ -3598,8 +3589,8 @@ async function renderPlanResumen(ordenes, refs){
   // Precalcular días y ordenar: antes se acaba → primero
   items.forEach(n => { n._dias = diasHastaAgotamiento(n); });
   items.sort((a,b)=>{
-    const va = a._dias===null ? 99999 : a._dias;
-    const vb = b._dias===null ? 99999 : b._dias;
+    const va = (a._dias===null||a._dias===-1) ? 99999 : a._dias;
+    const vb = (b._dias===null||b._dias===-1) ? 99999 : b._dias;
     return va - vb;
   });
 
@@ -3616,13 +3607,20 @@ async function renderPlanResumen(ordenes, refs){
         ${p.num} · ${p.pendiente.toLocaleString('es-ES')} ${p.unit}${p.fechaEst?` · llega ${p.fechaEst}`:''}
       </div>`).join('');
 
-    const diasHtml = dias !== null ? `
-      <div class="nec-row" style="margin-top:2px;">
+    let diasHtml = '';
+    if(dias===null){
+      diasHtml = `<div class="nec-row" style="margin-top:2px;">
+        <span>Se acaba en</span>
+        <span class="nec-val" style="color:var(--success)">Stock suficiente</span>
+      </div>`;
+    } else if(dias!==-1){
+      diasHtml = `<div class="nec-row" style="margin-top:2px;">
         <span>Se acaba en</span>
         <span class="nec-val" style="${dias<=3?'color:var(--alert)':dias<=7?'color:#F0883E':'color:var(--text2)'}">
           ${dias===0?'¡Hoy!':dias===1?'1 día':`${dias} días`}
         </span>
-      </div>` : '';
+      </div>`;
+    }
 
     return `<div class="nec-card${ok?'':' deficit'}${tienePedido?' pedido':''}">
       <div class="nec-label">${n.tipo==='pale'?'Palé':n.tipo==='caja'?'Caja':'Auxiliar'}</div>
