@@ -1188,6 +1188,19 @@
         </div>
       </div>
 
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Piezas/box seco</label>
+          <input type="number" class="form-input" id="ref-piezas-box-seco" placeholder="Solo informativo" min="0" />
+          <div class="form-hint">Dato de consulta, no afecta a los cálculos.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Piezas/box cocido</label>
+          <input type="number" class="form-input" id="ref-piezas-box-cocido" placeholder="Solo informativo" min="0" />
+          <div class="form-hint">Dato de consulta, no afecta a los cálculos.</div>
+        </div>
+      </div>
+
       <div class="form-divider"></div>
 
       <!-- Receta por palé -->
@@ -1420,6 +1433,8 @@ function toDb(table, r){
     if('cajasPale'  in m){ m.cajas_pale  = m.cajasPale;  delete m.cajasPale; }
     if('piezasCaja' in m){ m.piezas_caja = m.piezasCaja; delete m.piezasCaja; }
     if('piezasPale' in m){ m.piezas_pale = m.piezasPale; delete m.piezasPale; }
+    if('piezasBoxSeco'   in m){ m.piezas_box_seco   = m.piezasBoxSeco;   delete m.piezasBoxSeco; }
+    if('piezasBoxCocido' in m){ m.piezas_box_cocido = m.piezasBoxCocido; delete m.piezasBoxCocido; }
   }
   if(table==='ordenes'){
     if('refId' in m){ m.ref_id = m.refId; delete m.refId; }
@@ -1451,6 +1466,8 @@ function fromDb(table, r){
     m.cajasPale = m.cajas_pale;  delete m.cajas_pale;
     m.piezasCaja = m.piezas_caja; delete m.piezas_caja;
     m.piezasPale = m.piezas_pale; delete m.piezas_pale;
+    m.piezasBoxSeco   = m.piezas_box_seco;   delete m.piezas_box_seco;
+    m.piezasBoxCocido = m.piezas_box_cocido; delete m.piezas_box_cocido;
   }
   if(table==='ordenes'){
     m.refId = m.ref_id; delete m.ref_id;
@@ -4003,6 +4020,8 @@ async function openRefModal(id){
     document.getElementById('ref-cajas-pale').value = r.cajasPale||'';
     document.getElementById('ref-piezas-caja').value = r.piezasCaja||'';
     document.getElementById('ref-piezas-pale').value = r.piezasPale||'';
+    document.getElementById('ref-piezas-box-seco').value = r.piezasBoxSeco||'';
+    document.getElementById('ref-piezas-box-cocido').value = r.piezasBoxCocido||'';
     // linea
     if(r.linea==='Tempio'){
       document.getElementById('ref-linea-tempio').checked=true;
@@ -4039,6 +4058,8 @@ function resetRefModal(){
   document.getElementById('ref-cajas-pale').value='';
   document.getElementById('ref-piezas-caja').value='';
   document.getElementById('ref-piezas-pale').value='';
+  document.getElementById('ref-piezas-box-seco').value='';
+  document.getElementById('ref-piezas-box-cocido').value='';
   document.getElementById('ref-linea-mayor').checked=true;
   document.getElementById('ref-formato').value='';
   document.getElementById('ref-medidas').value='';
@@ -4125,7 +4146,9 @@ async function saveRef(){
 
   const id = document.getElementById('ref-edit-id').value;
   const articulo = document.getElementById('ref-articulo').value.trim();
-  const row = {nombre,articulo,proddia,llevaCaja,paleId:paleId||null,cajaId:cajaId||null,cajasPale,piezasCaja,piezasPale,auxiliares:auxLines,linea,formato,medidas};
+  const piezasBoxSeco = parseInt(document.getElementById('ref-piezas-box-seco').value)||0;
+  const piezasBoxCocido = parseInt(document.getElementById('ref-piezas-box-cocido').value)||0;
+  const row = {nombre,articulo,proddia,llevaCaja,paleId:paleId||null,cajaId:cajaId||null,cajasPale,piezasCaja,piezasPale,auxiliares:auxLines,linea,formato,medidas,piezasBoxSeco,piezasBoxCocido};
 
   setLoading(true);
   if(id){
@@ -4208,7 +4231,7 @@ async function renderRefs(){
       <td><strong>${r.nombre}</strong>${r.medidas?`<span style="font-size:11px;color:var(--text3);margin-left:6px;">${r.medidas}</span>`:''}</td>
       <td class="td-muted">${pale?pale.nombre:'<span style="color:var(--alert);font-size:11px;">Sin asignar</span>'}</td>
       <td>${r.llevaCaja?(caja?`<span class="badge badge-accent">${caja.nombre}</span>`:'<span style="color:var(--alert);font-size:11px;">Sin asignar</span>'):'<span class="badge badge-neutral">Sin caja</span>'}</td>
-      <td class="td-muted">${r.proddia.toLocaleString('es-ES')} pzas/día</td>
+      <td class="td-muted">${r.proddia.toLocaleString('es-ES')} pzas/día${(r.piezasBoxSeco||r.piezasBoxCocido)?`<div style="font-size:10px;color:var(--text3);margin-top:2px;">${r.piezasBoxSeco?`Seco: ${r.piezasBoxSeco}`:''}${r.piezasBoxSeco&&r.piezasBoxCocido?' · ':''}${r.piezasBoxCocido?`Cocido: ${r.piezasBoxCocido}`:''}</div>`:''}</td>
       <td><div class="receta-pills">${pills.map(p=>`<span class="receta-pill">${p}</span>`).join('')||'<span style="color:var(--text3);font-size:11px;">Solo palé</span>'}</div></td>
       <td><div class="td-actions">
         <button class="btn btn-ghost btn-sm" onclick="editRef('${r.id}')">Editar</button>
