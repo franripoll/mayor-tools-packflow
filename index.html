@@ -3547,6 +3547,9 @@ async function renderPlanResumen(ordenes, refs){
       if(finDate < today) return; // orden ya terminada
 
       const consumoDia = consumoDiarioMaterial(n.tipo, n.matId, ref);
+      if(window.__DEBUG_BPAR && n.nombre && n.nombre.includes('BPAR')){
+        console.log('[DEBUG]', n.nombre, 'orden de', ref.nombre, 'o.inicio=', o.inicio, 'o.fin=', o.fin, 'consumoDia=', consumoDia);
+      }
       if(consumoDia <= 0) return;
 
       // iterar días usando UTC para evitar problemas de zona horaria
@@ -3563,10 +3566,17 @@ async function renderPlanResumen(ordenes, refs){
       }
     });
 
+    if(window.__DEBUG_BPAR && n.nombre && n.nombre.includes('BPAR')){
+      console.log('[DEBUG] consumoPorDia FINAL para', n.nombre, '=', JSON.stringify(consumoPorDia));
+    }
+
     // Si no hay consumo futuro, no hay agotamiento relevante
     const diasFuturos = Object.keys(consumoPorDia)
       .filter(iso=> iso >= today.toISOString().slice(0,10))
       .sort();
+    if(window.__DEBUG_BPAR && n.nombre && n.nombre.includes('BPAR')){
+      console.log('[DEBUG] diasFuturos para', n.nombre, '=', JSON.stringify(diasFuturos));
+    }
     if(!diasFuturos.length) return null;
 
     // Simular stock día a día desde hoy
