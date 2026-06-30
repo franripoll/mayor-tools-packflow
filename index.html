@@ -2180,13 +2180,21 @@ async function renderDashboard(){
     let diasHasta = diasFuturosDash.length ? null : -1;
     if(diasFuturosDash.length){
       let sr=stock;
+      let ultimoDiaDash=null;
       for(const iso of diasFuturosDash){
         sr-=consumoPorDiaDash[iso];
+        ultimoDiaDash=iso;
         if(sr<=0){
           const dA=new Date(iso+'T00:00:00');
           diasHasta=Math.round((dA-todayDate)/(1000*60*60*24));
           break;
         }
+      }
+      // Consistencia con el déficit total: si tras todo el consumo conocido
+      // el stock no cubre la necesidad total, el material sí se agota
+      if(diasHasta===null && necesario>stock && ultimoDiaDash){
+        const dA=new Date(ultimoDiaDash+'T00:00:00');
+        diasHasta=Math.round((dA-todayDate)/(1000*60*60*24));
       }
     }
 
@@ -3570,16 +3578,28 @@ async function renderPlanResumen(ordenes, refs){
       .sort();
     if(!diasFuturos.length) return -1; // sin consumo activo
 
-    // Simular stock día a día desde hoy
+    // Simular stock día a día desde hoy, día a día acumulado
     let stockRestante = n.stock;
+    let ultimoDiaConConsumo = null;
     for(const iso of diasFuturos){
       stockRestante -= consumoPorDia[iso];
+      ultimoDiaConConsumo = iso;
       if(stockRestante <= 0){
         // calcular cuántos días desde hoy es este iso
         const dAgot = new Date(iso+'T00:00:00');
         return Math.round((dAgot - today)/(1000*60*60*24));
       }
     }
+
+    // Si tras simular todo el consumo conocido el stock acumulado no cubre
+    // el déficit total de la planificación (n.necesario > n.stock), el material
+    // SÍ se agota — aunque sea en el último día de consumo simulado.
+    // Esto mantiene coherencia con la card de déficit (necesario vs stock).
+    if(n.necesario !== undefined && n.necesario > n.stock && ultimoDiaConConsumo){
+      const dAgot = new Date(ultimoDiaConConsumo+'T00:00:00');
+      return Math.round((dAgot - today)/(1000*60*60*24));
+    }
+
     return null; // hay consumo activo pero el stock alcanza para toda la planificación
   }
 
