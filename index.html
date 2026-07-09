@@ -1537,6 +1537,18 @@ function calcNecesidades(orden, ref){
   return { numCajas, numPales };
 }
 
+// Piezas que quedan por fabricar desde hoy en una orden
+function calcPiezasPendientes(o, ref){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().slice(0,10);
+  if(todayStr <= o.inicio) return o.cantidad;          // no ha empezado
+  if(todayStr > o.fin)     return 0;                   // ya terminada
+  const inicioDate = new Date(o.inicio+'T00:00:00');
+  const diasTranscurridos = Math.round((today - inicioDate)/(1000*60*60*24));
+  const piezasProducidas = Math.min(diasTranscurridos * (ref.proddia||0), o.cantidad);
+  return Math.max(0, o.cantidad - piezasProducidas);
+}
+
 // Consumo diario de un material concreto (tipo+matId) generado por una referencia
 // Única fuente de verdad usada en dashboard, planificación y Gantt
 function consumoDiarioMaterial(tipo, matId, ref){
@@ -2185,7 +2197,8 @@ async function renderDashboard(){
   const nec = {};
   ordenes.filter(o=>o.fin>=todayISO).forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
-    const {numCajas: numCajasD, numPales} = calcNecesidades(o, ref);
+    const piezasPend = calcPiezasPendientes(o, ref);
+    const {numCajas: numCajasD, numPales} = calcNecesidades({...o, cantidad: piezasPend}, ref);
     if(ref.paleId){ nec['pale_'+ref.paleId]=(nec['pale_'+ref.paleId]||0)+numPales; }
     if(ref.llevaCaja&&ref.cajaId){ nec['caja_'+ref.cajaId]=(nec['caja_'+ref.cajaId]||0)+numCajasD; }
     (ref.auxiliares||[]).forEach(a=>{ nec['aux_'+a.auxId]=(nec['aux_'+a.auxId]||0)+numPales*a.qty; });
@@ -2480,7 +2493,9 @@ async function suggestLineas(){
   const nec = {};
   ordenes.forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId); if(!ref) return;
-    const {numCajas: numCajasS, numPales} = calcNecesidades(o, ref);
+    const piezasPend = calcPiezasPendientes(o, ref);
+    if(piezasPend <= 0) return;
+    const {numCajas: numCajasS, numPales} = calcNecesidades({...o, cantidad: piezasPend}, ref);
     if(tipo==='pale'&&ref.paleId){ nec[ref.paleId]=(nec[ref.paleId]||0)+numPales; }
     if(tipo==='caja'&&ref.llevaCaja&&ref.cajaId){ nec[ref.cajaId]=(nec[ref.cajaId]||0)+numCajasS; }
     if(tipo==='aux'){ (ref.auxiliares||[]).forEach(a=>{ nec[a.auxId]=(nec[a.auxId]||0)+numPales*a.qty; }); }
@@ -3612,7 +3627,9 @@ async function renderPlanResumen(ordenes, refs){
   ordenes.forEach(o=>{
     const ref = refs.find(r=>r.id===o.refId);
     if(!ref) return;
-    const {numCajas, numPales} = calcNecesidades(o, ref);
+    const piezasPend = calcPiezasPendientes(o, ref);
+    if(piezasPend <= 0) return; // orden completada, no suma necesidades
+    const {numCajas, numPales} = calcNecesidades({...o, cantidad: piezasPend}, ref);
 
     // palé de producto
     if(ref.paleId){
