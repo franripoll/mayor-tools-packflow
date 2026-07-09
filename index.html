@@ -2985,29 +2985,64 @@ async function openOrdenModal(id){
     const cajas  = await dbGet('cajas');
     const auxs   = await dbGet('aux');
     const {numCajas, numPales} = calcNecesidades(o, ref);
+
+    // piezas pendientes desde hoy
+    const todayStr2 = new Date().toISOString().slice(0,10);
+    const inicioDate = new Date(o.inicio+'T00:00:00');
+    const todayDate2 = new Date(); todayDate2.setHours(0,0,0,0);
+    let piezasPendientes;
+    if(todayStr2 <= o.inicio){
+      // aún no ha empezado
+      piezasPendientes = o.cantidad;
+    } else if(todayStr2 >= o.fin){
+      // ya terminada
+      piezasPendientes = 0;
+    } else {
+      // en curso — días transcurridos desde inicio hasta ayer
+      const diasTranscurridos = Math.round((todayDate2 - inicioDate)/(1000*60*60*24));
+      const piezasYaProducidas = Math.min(diasTranscurridos * ref.proddia, o.cantidad);
+      piezasPendientes = Math.max(0, o.cantidad - piezasYaProducidas);
+    }
+
+    const ordenPendiente = {cantidad: piezasPendientes, refId: o.refId};
+    const {numCajas: numCajasPend, numPales: numPalesPend} = calcNecesidades(ordenPendiente, ref);
+
     const matLines = [];
+    const headerHtml = `<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:3px 0;border-bottom:1px solid var(--border);margin-bottom:4px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;">
+      <span></span><span style="text-align:right;min-width:70px;">Total</span><span style="text-align:right;min-width:70px;">Pendiente</span></div>`;
+
     if(ref.paleId){
       const p = pales.find(x=>x.id===ref.paleId);
-      matLines.push(`<div style="display:flex;justify-content:space-between;padding:3px 0;">
-        <span style="color:var(--text2);">Palé · ${p?.nombre||'—'}</span>
-        <strong style="color:var(--text);">${numPales.toLocaleString('es-ES')} ud</strong></div>`);
+      matLines.push(`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:3px 0;">
+        <span style="color:var(--text2);font-size:12px;">Palé · ${p?.nombre||'—'}</span>
+        <strong style="color:var(--text);text-align:right;min-width:70px;">${numPales.toLocaleString('es-ES')} ud</strong>
+        <strong style="color:var(--accent);text-align:right;min-width:70px;">${numPalesPend.toLocaleString('es-ES')} ud</strong></div>`);
     }
     if(ref.llevaCaja && ref.cajaId && numCajas>0){
       const c = cajas.find(x=>x.id===ref.cajaId);
-      matLines.push(`<div style="display:flex;justify-content:space-between;padding:3px 0;">
-        <span style="color:var(--text2);">Caja · ${c?.nombre||'—'}</span>
-        <strong style="color:var(--text);">${numCajas.toLocaleString('es-ES')} ud</strong></div>`);
+      matLines.push(`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:3px 0;">
+        <span style="color:var(--text2);font-size:12px;">Caja · ${c?.nombre||'—'}</span>
+        <strong style="color:var(--text);text-align:right;min-width:70px;">${numCajas.toLocaleString('es-ES')} ud</strong>
+        <strong style="color:var(--accent);text-align:right;min-width:70px;">${numCajasPend.toLocaleString('es-ES')} ud</strong></div>`);
     }
     (ref.auxiliares||[]).forEach(a=>{
       const ax = auxs.find(x=>x.id===a.auxId);
       if(!ax) return;
-      const qty = Math.ceil(numPales * a.qty);
-      matLines.push(`<div style="display:flex;justify-content:space-between;padding:3px 0;">
-        <span style="color:var(--text2);">Aux · ${ax.nombre}</span>
-        <strong style="color:var(--text);">${qty.toLocaleString('es-ES')} ${ax.unidad}</strong></div>`);
+      const qty     = Math.ceil(numPales * a.qty);
+      const qtyPend = Math.ceil(numPalesPend * a.qty);
+      matLines.push(`<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:3px 0;">
+        <span style="color:var(--text2);font-size:12px;">Aux · ${ax.nombre}</span>
+        <strong style="color:var(--text);text-align:right;min-width:70px;">${qty.toLocaleString('es-ES')} ${ax.unidad}</strong>
+        <strong style="color:var(--accent);text-align:right;min-width:70px;">${qtyPend.toLocaleString('es-ES')} ${ax.unidad}</strong></div>`);
     });
+
+    const piezasPendHtml = `<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">
+      ${piezasPendientes===o.cantidad?'Aún no ha empezado':piezasPendientes===0?'Completada':
+      `Pendiente: <strong style="color:var(--accent);">${piezasPendientes.toLocaleString('es-ES')} pzas</strong> de ${o.cantidad.toLocaleString('es-ES')}`}
+    </div>`;
+
     document.getElementById('orden-edit-materiales').innerHTML =
-      matLines.join('') || '<span style="color:var(--text3);">Sin receta definida</span>';
+      matLines.length ? piezasPendHtml + headerHtml + matLines.join('') : '<span style="color:var(--text3);">Sin receta definida</span>';
 
     window._ordenEditData = o;
     document.getElementById('orden-incremento').value='';
