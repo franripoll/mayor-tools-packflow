@@ -1045,6 +1045,12 @@
           </div>
         </div>
 
+        <!-- Materiales necesarios -->
+        <div style="background:var(--surface2);border-radius:var(--r);padding:14px 16px;margin-bottom:20px;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Materiales necesarios</div>
+          <div id="orden-edit-materiales" style="font-size:13px;color:var(--text2);line-height:2;"></div>
+        </div>
+
         <!-- Incremento -->
         <div class="form-group">
           <label class="form-label">Incremento de piezas</label>
@@ -2973,6 +2979,35 @@ async function openOrdenModal(id){
     } else {
       clienteRow.style.display='none';
     }
+
+    // materiales necesarios para esta orden
+    const pales  = await dbGet('pales');
+    const cajas  = await dbGet('cajas');
+    const auxs   = await dbGet('aux');
+    const {numCajas, numPales} = calcNecesidades(o, ref);
+    const matLines = [];
+    if(ref.paleId){
+      const p = pales.find(x=>x.id===ref.paleId);
+      matLines.push(`<div style="display:flex;justify-content:space-between;padding:3px 0;">
+        <span style="color:var(--text2);">Palé · ${p?.nombre||'—'}</span>
+        <strong style="color:var(--text);">${numPales.toLocaleString('es-ES')} ud</strong></div>`);
+    }
+    if(ref.llevaCaja && ref.cajaId && numCajas>0){
+      const c = cajas.find(x=>x.id===ref.cajaId);
+      matLines.push(`<div style="display:flex;justify-content:space-between;padding:3px 0;">
+        <span style="color:var(--text2);">Caja · ${c?.nombre||'—'}</span>
+        <strong style="color:var(--text);">${numCajas.toLocaleString('es-ES')} ud</strong></div>`);
+    }
+    (ref.auxiliares||[]).forEach(a=>{
+      const ax = auxs.find(x=>x.id===a.auxId);
+      if(!ax) return;
+      const qty = Math.ceil(numPales * a.qty);
+      matLines.push(`<div style="display:flex;justify-content:space-between;padding:3px 0;">
+        <span style="color:var(--text2);">Aux · ${ax.nombre}</span>
+        <strong style="color:var(--text);">${qty.toLocaleString('es-ES')} ${ax.unidad}</strong></div>`);
+    });
+    document.getElementById('orden-edit-materiales').innerHTML =
+      matLines.join('') || '<span style="color:var(--text3);">Sin receta definida</span>';
 
     window._ordenEditData = o;
     document.getElementById('orden-incremento').value='';
