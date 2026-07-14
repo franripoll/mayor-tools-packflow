@@ -1474,7 +1474,7 @@ function toDb(table, r){
     if('refNombre' in m){ m.ref_nombre = m.refNombre; delete m.refNombre; }
     if('numPales'  in m){ m.num_pales  = m.numPales;  delete m.numPales; }
   }
-  delete m.created_at;
+  // created_at se mantiene para poder ordenar correctamente por inserción real
   return m;
 }
 
@@ -2033,7 +2033,7 @@ async function calcConsumo(){
   const conteos = (await dbGet('conteos'));
 
   function stockOf(tipo,matId){
-    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0];
     return last?last.cantidad:0;
   }
 
@@ -2089,7 +2089,7 @@ async function saveConsumo(){
 
   const conteos = await dbGet('conteos');
   function stockOf(tipo,matId){
-    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0];
     return last?last.cantidad:0;
   }
 
@@ -2171,7 +2171,7 @@ async function renderDashboard(){
   const todayDate = new Date(); todayDate.setHours(0,0,0,0);
 
   function stockOf(tipo,matId){
-    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0];
     return last?last.cantidad:0;
   }
 
@@ -2478,7 +2478,7 @@ async function suggestLineas(){
   const pedidos = await dbGet('pedidos');
   const opts    = await getMaterialOptions(tipo);
 
-  function stockOf(matId){ const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0]; return last?last.cantidad:0; }
+  function stockOf(matId){ const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0]; return last?last.cantidad:0; }
 
   // cantidad pendiente de recibir en pedidos activos por material
   function pendienteEnPedidos(matId){
@@ -2616,7 +2616,7 @@ async function saveRecepcion(){
       pedido.lineas[i].recibido=(l.recibido||0)+qty;
       recItems.push({matId:l.matId,nombre:l.nombre,cantidad:qty,unit:l.unit});
       const tipo=pedido.tipo;
-      const lastStock=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===l.matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+      const lastStock=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===l.matId).sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0];
       const stockActual=lastStock?lastStock.cantidad:0;
       conteosToInsert.push({id:uid(),tipo,materialId:l.matId,nombre:l.nombre,cantidad:stockActual+qty,unit:l.unit,fecha:new Date().toISOString(),esEntrada:true,proveedor});
     }
@@ -3328,7 +3328,7 @@ async function renderGantt(){
 
   function stockOf(tipo, matId){
     const last = [...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId)
-      .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+      .sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0];
     return last?last.cantidad:0;
   }
 
@@ -3617,7 +3617,7 @@ async function renderPlanResumen(ordenes, refs){
 
   function stockOf(tipo, matId){
     const last = [...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId)
-      .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+      .sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0];
     return last?last.cantidad:0;
   }
 
@@ -3807,7 +3807,7 @@ async function renderMobCatScreen(){
   // update counts per category
   const conteos = (await dbGet('conteos'));
   function latestStock(tipo, matId){
-    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+    const last=[...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0];
     return last?last.cantidad:null;
   }
   const pales = (await dbGet('pales'));
@@ -3834,7 +3834,7 @@ async function mobSelectCat(tipo){
   // build items list
   const conteos = (await dbGet('conteos'));
   function latestConteo(matId){
-    return [...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0]||null;
+    return [...conteos].filter(c=>c.tipo===tipo&&c.materialId===matId).sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0]||null;
   }
 
   let items=[];
@@ -3890,7 +3890,7 @@ async function mobSelectMaterial(id, nombre, unit){
 
   // show previous stock
   const conteos = (await dbGet('conteos'));
-  const last=[...conteos].filter(c=>c.tipo===_mobCat&&c.materialId===id).sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))[0];
+  const last=[...conteos].filter(c=>c.tipo===_mobCat&&c.materialId===id).sort((a,b)=>new Date(b.created_at||b.fecha)-new Date(a.created_at||a.fecha))[0];
   if(last){
     document.getElementById('mob-prev-stock').textContent=last.cantidad.toLocaleString('es-ES')+' '+unit;
     document.getElementById('mob-prev-date').textContent=fmtDate(last.fecha);
