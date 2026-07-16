@@ -2201,7 +2201,21 @@ async function renderConsumo(){
   const primeraFecha = fechasOrdenadas[0];
   const ultimaFecha  = fechasOrdenadas[fechasOrdenadas.length-1];
   const diasSpan = Math.max(1, Math.round((new Date(ultimaFecha+'T00:00:00') - new Date(primeraFecha+'T00:00:00'))/(1000*60*60*24)) + 1);
-  const mediaPalesDia = (totalPales / diasSpan).toFixed(1);
+  const mediaPalesDiaNatural = (totalPales / diasSpan).toFixed(1);
+
+  // días laborables (L-V) dentro del periodo
+  let diasLaborables = 0;
+  {
+    let d = new Date(primeraFecha+'T00:00:00');
+    const fin = new Date(ultimaFecha+'T00:00:00');
+    while(d <= fin){
+      const dow = d.getDay(); // 0=domingo, 6=sábado
+      if(dow!==0 && dow!==6) diasLaborables++;
+      d.setDate(d.getDate()+1);
+    }
+  }
+  diasLaborables = Math.max(1, diasLaborables);
+  const mediaPalesDiaLaboral = (totalPales / diasLaborables).toFixed(1);
 
   // intervalo medio entre registros consecutivos (si hay más de uno)
   let intervaloMedio = '—';
@@ -2231,11 +2245,17 @@ async function renderConsumo(){
     <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Periodo</div>
       <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:4px;">${primeraFecha} → ${ultimaFecha}</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px;">${diasSpan} día${diasSpan!==1?'s':''}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;">${diasSpan} día${diasSpan!==1?'s':''} natural${diasSpan!==1?'es':''} · ${diasLaborables} laborable${diasLaborables!==1?'s':''}</div>
     </div>
     <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Media palés/día</div>
-      <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:4px;">${mediaPalesDia}</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Media · día natural</div>
+      <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:4px;">${mediaPalesDiaNatural}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;">palés/día, todos los días</div>
+    </div>
+    <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Media · día laboral</div>
+      <div style="font-size:22px;font-weight:700;color:var(--accent);margin-top:4px;">${mediaPalesDiaLaboral}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;">palés/día, solo L-V</div>
     </div>
     <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Intervalo medio</div>
