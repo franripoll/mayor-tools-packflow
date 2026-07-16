@@ -521,6 +521,28 @@
           </button>
         </div>
 
+        <!-- Filtros -->
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:18px;">
+          <div class="form-group" style="margin-bottom:0;min-width:220px;">
+            <label class="form-label">Referencia</label>
+            <select class="form-select" id="consumo-filtro-ref" onchange="renderConsumo()">
+              <option value="">Todas las referencias</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Desde</label>
+            <input type="date" class="form-input" id="consumo-filtro-desde" onchange="renderConsumo()" />
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Hasta</label>
+            <input type="date" class="form-input" id="consumo-filtro-hasta" onchange="renderConsumo()" />
+          </div>
+          <button class="btn btn-ghost" onclick="clearConsumoFiltros()">Limpiar filtros</button>
+        </div>
+
+        <!-- Resumen estadístico -->
+        <div id="consumo-stats" style="display:none;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;"></div>
+
         <!-- Historial -->
         <div class="table-wrap" id="consumo-table-wrap">
           <table>
@@ -2138,13 +2160,88 @@ async function saveConsumo(){
 }
 
 async function renderConsumo(){
-  const registros = (await dbGet('consumos')).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const todosRegistros = (await dbGet('consumos')).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const refs = await dbGet('refs');
+
+  // poblar select de referencias (una vez, sin perder selección)
+  const selRef = document.getElementById('consumo-filtro-ref');
+  if(selRef.options.length<=1){
+    const refsUsadas = [...new Set(todosRegistros.map(r=>r.refId))];
+    const opts = refsUsadas.map(id=>{
+      const ref = refs.find(x=>x.id===id);
+      return {id, nombre: ref?.nombre || todosRegistros.find(r=>r.refId===id)?.refNombre || '—'};
+    }).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+    selRef.innerHTML = '<option value="">Todas las referencias</option>' +
+      opts.map(o=>`<option value="${o.id}">${o.nombre}</option>`).join('');
+  }
+
+  const filtroRef   = selRef.value;
+  const filtroDesde = document.getElementById('consumo-filtro-desde').value;
+  const filtroHasta = document.getElementById('consumo-filtro-hasta').value;
+
+  let registros = todosRegistros;
+  if(filtroRef)   registros = registros.filter(r=>r.refId===filtroRef);
+  if(filtroDesde) registros = registros.filter(r=>r.fecha>=filtroDesde);
+  if(filtroHasta) registros = registros.filter(r=>r.fecha<=filtroHasta);
+
   const tbody = document.getElementById('consumo-tbody');
   const empty = document.getElementById('consumo-empty');
   const wrap  = document.getElementById('consumo-table-wrap');
+  const statsEl = document.getElementById('consumo-stats');
 
-  if(!registros.length){ wrap.style.display='none'; empty.style.display='flex'; return; }
+  if(!registros.length){
+    wrap.style.display='none'; empty.style.display='flex'; statsEl.style.display='none';
+    return;
+  }
   wrap.style.display='block'; empty.style.display='none';
+
+  // ── Resumen estadístico ──
+  const totalPales = registros.reduce((s,r)=>s+(r.numPales||0),0);
+  const fechasOrdenadas = [...registros].map(r=>r.fecha).sort();
+  const primeraFecha = fechasOrdenadas[0];
+  const ultimaFecha  = fechasOrdenadas[fechasOrdenadas.length-1];
+  const diasSpan = Math.max(1, Math.round((new Date(ultimaFecha+'T00:00:00') - new Date(primeraFecha+'T00:00:00'))/(1000*60*60*24)) + 1);
+  const mediaPalesDia = (totalPales / diasSpan).toFixed(1);
+
+  // intervalo medio entre registros consecutivos (si hay más de uno)
+  let intervaloMedio = '—';
+  if(fechasOrdenadas.length>1){
+    const fechasUnicas = [...new Set(fechasOrdenadas)].sort();
+    if(fechasUnicas.length>1){
+      let totalGap=0;
+      for(let i=1;i<fechasUnicas.length;i++){
+        totalGap += Math.round((new Date(fechasUnicas[i]+'T00:00:00')-new Date(fechasUnicas[i-1]+'T00:00:00'))/(1000*60*60*24));
+      }
+      intervaloMedio = (totalGap/(fechasUnicas.length-1)).toFixed(1)+' d';
+    } else {
+      intervaloMedio = '0 d (mismo día)';
+    }
+  }
+
+  statsEl.style.display = 'grid';
+  statsEl.innerHTML = `
+    <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Total palés</div>
+      <div style="font-size:22px;font-weight:700;color:var(--accent);margin-top:4px;">${totalPales.toLocaleString('es-ES')}</div>
+    </div>
+    <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Registros</div>
+      <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:4px;">${registros.length}</div>
+    </div>
+    <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Periodo</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-top:4px;">${primeraFecha} → ${ultimaFecha}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;">${diasSpan} día${diasSpan!==1?'s':''}</div>
+    </div>
+    <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Media palés/día</div>
+      <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:4px;">${mediaPalesDia}</div>
+    </div>
+    <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:var(--rl);padding:14px 16px;">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">Intervalo medio</div>
+      <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:4px;">${intervaloMedio}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;">entre días con salida</div>
+    </div>`;
 
   tbody.innerHTML = registros.map(r=>`
     <tr>
@@ -2153,6 +2250,13 @@ async function renderConsumo(){
       <td><span class="badge badge-alert">${r.numPales} palés</span></td>
       <td class="td-muted" style="font-size:11px;">${(r.descuentos||[]).join(' · ')}</td>
     </tr>`).join('');
+}
+
+function clearConsumoFiltros(){
+  document.getElementById('consumo-filtro-ref').value='';
+  document.getElementById('consumo-filtro-desde').value='';
+  document.getElementById('consumo-filtro-hasta').value='';
+  renderConsumo();
 }
 
 // ─────────────────────────────────────────
