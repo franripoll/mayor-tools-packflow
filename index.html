@@ -529,6 +529,12 @@
               <option value="">Todas las referencias</option>
             </select>
           </div>
+          <div class="form-group" style="margin-bottom:0;min-width:150px;">
+            <label class="form-label">Color</label>
+            <select class="form-select" id="consumo-filtro-color" onchange="renderConsumo()">
+              <option value="">Todos los colores</option>
+            </select>
+          </div>
           <div class="form-group" style="margin-bottom:0;">
             <label class="form-label">Desde</label>
             <input type="date" class="form-input" id="consumo-filtro-desde" onchange="renderConsumo()" />
@@ -549,6 +555,8 @@
             <thead><tr>
               <th>Fecha</th>
               <th>Referencia</th>
+              <th>Color</th>
+              <th>Lote</th>
               <th>Palés salidos</th>
               <th>Material descontado</th>
             </tr></thead>
@@ -850,6 +858,17 @@
       <div class="form-group">
         <label class="form-label">Palés terminados que salen <span class="req">*</span></label>
         <input type="number" class="form-input" id="con-pales" placeholder="Nº de palés" min="1" style="font-size:18px;padding:12px;" oninput="calcConsumo()" />
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Color</label>
+          <input type="text" class="form-input" id="con-color" placeholder="Ej: Blanco, Gris..." list="con-color-list" />
+          <datalist id="con-color-list"></datalist>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lote</label>
+          <input type="text" class="form-input" id="con-lote" placeholder="Ej: L2607" />
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Fecha</label>
@@ -2025,9 +2044,17 @@ async function openConsumoModal(){
   sel.innerHTML = '<option value="">Selecciona referencia...</option>' +
     refs.map(r=>`<option value="${r.id}">${r.nombre}</option>`).join('');
   document.getElementById('con-pales').value='';
+  document.getElementById('con-color').value='';
+  document.getElementById('con-lote').value='';
   document.getElementById('con-calc').style.display='none';
   const today = new Date().toISOString().slice(0,10);
   document.getElementById('con-fecha').value=today;
+
+  // poblar datalist de colores usados anteriormente
+  const consumos = await dbGet('consumos');
+  const colores = [...new Set(consumos.map(c=>c.color).filter(Boolean))].sort();
+  document.getElementById('con-color-list').innerHTML = colores.map(c=>`<option value="${c}">`).join('');
+
   document.getElementById('modal-consumo').classList.add('open');
 }
 function closeConsumoModal(){
@@ -2105,6 +2132,8 @@ async function saveConsumo(){
   const numPales = parseInt(document.getElementById('con-pales').value);
   if(!numPales||numPales<1){ showToast('Introduce el número de palés','error'); return; }
   const fecha = document.getElementById('con-fecha').value||new Date().toISOString().slice(0,10);
+  const color = document.getElementById('con-color').value.trim();
+  const lote  = document.getElementById('con-lote').value.trim();
 
   const ref = (await dbGet('refs')).find(r=>r.id===refId);
   if(!ref) return;
@@ -2150,7 +2179,7 @@ async function saveConsumo(){
   setLoading(true);
   for(const c of conteosToInsert) await dbInsert('conteos',c);
   delete _cache['conteos'];
-  await dbInsert('consumos',{id:uid(),refId,refNombre:ref.nombre,numPales,fecha,descuentos});
+  await dbInsert('consumos',{id:uid(),refId,refNombre:ref.nombre,numPales,fecha,descuentos,color,lote});
   setLoading(false);
 
   closeConsumoModal();
@@ -2175,12 +2204,22 @@ async function renderConsumo(){
       opts.map(o=>`<option value="${o.id}">${o.nombre}</option>`).join('');
   }
 
+  // poblar select de colores (una vez)
+  const selColor = document.getElementById('consumo-filtro-color');
+  if(selColor.options.length<=1){
+    const colores = [...new Set(todosRegistros.map(r=>r.color).filter(Boolean))].sort();
+    selColor.innerHTML = '<option value="">Todos los colores</option>' +
+      colores.map(c=>`<option value="${c}">${c}</option>`).join('');
+  }
+
   const filtroRef   = selRef.value;
+  const filtroColor = selColor.value;
   const filtroDesde = document.getElementById('consumo-filtro-desde').value;
   const filtroHasta = document.getElementById('consumo-filtro-hasta').value;
 
   let registros = todosRegistros;
   if(filtroRef)   registros = registros.filter(r=>r.refId===filtroRef);
+  if(filtroColor) registros = registros.filter(r=>r.color===filtroColor);
   if(filtroDesde) registros = registros.filter(r=>r.fecha>=filtroDesde);
   if(filtroHasta) registros = registros.filter(r=>r.fecha<=filtroHasta);
 
@@ -2267,6 +2306,8 @@ async function renderConsumo(){
     <tr>
       <td class="td-muted">${r.fecha}</td>
       <td><strong>${r.refNombre}</strong></td>
+      <td class="td-muted">${r.color||'—'}</td>
+      <td class="td-muted" style="font-family:monospace;font-size:12px;">${r.lote||'—'}</td>
       <td><span class="badge badge-alert">${r.numPales} palés</span></td>
       <td class="td-muted" style="font-size:11px;">${(r.descuentos||[]).join(' · ')}</td>
     </tr>`).join('');
@@ -2274,6 +2315,7 @@ async function renderConsumo(){
 
 function clearConsumoFiltros(){
   document.getElementById('consumo-filtro-ref').value='';
+  document.getElementById('consumo-filtro-color').value='';
   document.getElementById('consumo-filtro-desde').value='';
   document.getElementById('consumo-filtro-hasta').value='';
   renderConsumo();
