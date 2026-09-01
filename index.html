@@ -1196,15 +1196,63 @@
 
       <!-- Formato y medidas (solo Tempio) -->
       <div id="ref-tempio-fields" style="display:none;">
-        <div class="form-row form-row-2">
-          <div class="form-group">
-            <label class="form-label">Formato <span class="req">*</span></label>
-            <input type="text" class="form-input" id="ref-formato" placeholder="Ej: Peldaño, Rodapié, Baldosa..." list="ref-formato-list" />
-            <datalist id="ref-formato-list"></datalist>
+
+        <div class="form-group">
+          <label class="form-label">Categoría dentro de Tempio</label>
+          <div style="display:flex;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--text);">
+              <input type="radio" name="ref-tempio-cat" id="ref-tempio-cat-fachada" value="fachada" onchange="toggleTempioCategoria()" style="accent-color:var(--accent);" />
+              Fachada ventilada
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;color:var(--text);">
+              <input type="radio" name="ref-tempio-cat" id="ref-tempio-cat-otro" value="otro" checked onchange="toggleTempioCategoria()" style="accent-color:var(--accent);" />
+              Otro (rodapié, peldaño, baldosa...)
+            </label>
           </div>
-          <div class="form-group">
-            <label class="form-label">Medidas <span class="req">*</span></label>
-            <input type="text" class="form-input" id="ref-medidas" placeholder="Ej: 33x120, 8cm, 45x45..." />
+        </div>
+
+        <!-- Fachada ventilada: tipo + espesor + ancho + largo -->
+        <div id="ref-fachada-fields" style="display:none;">
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Tipo de fachada <span class="req">*</span></label>
+              <input type="text" class="form-input" id="ref-fachada-tipo" placeholder="Ej: FK, FS..." list="ref-fachada-tipo-list" style="text-transform:uppercase;" oninput="updateFachadaPreview()" />
+              <datalist id="ref-fachada-tipo-list"></datalist>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Espesor <span class="req">*</span></label>
+              <input type="text" class="form-input" id="ref-fachada-espesor" placeholder="Ej: 16, 20..." list="ref-fachada-espesor-list" oninput="updateFachadaPreview()" />
+              <datalist id="ref-fachada-espesor-list"></datalist>
+            </div>
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Ancho (mm) <span class="req">*</span></label>
+              <input type="number" class="form-input" id="ref-fachada-ancho" placeholder="Ej: 450" min="1" list="ref-fachada-ancho-list" oninput="updateFachadaPreview()" />
+              <datalist id="ref-fachada-ancho-list"></datalist>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Largo (mm) <span class="req">*</span></label>
+              <input type="number" class="form-input" id="ref-fachada-largo" placeholder="Ej: 1200" min="1" oninput="updateFachadaPreview()" />
+            </div>
+          </div>
+          <div class="form-hint" style="margin-top:-8px;margin-bottom:14px;">
+            Formato resultante: <strong id="ref-fachada-preview" style="color:var(--accent);">—</strong>
+          </div>
+        </div>
+
+        <!-- Otro: formato + medidas texto libre -->
+        <div id="ref-otro-fields" style="display:none;">
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Formato <span class="req">*</span></label>
+              <input type="text" class="form-input" id="ref-formato" placeholder="Ej: Peldaño, Rodapié, Baldosa..." list="ref-formato-list" />
+              <datalist id="ref-formato-list"></datalist>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Medidas <span class="req">*</span></label>
+              <input type="text" class="form-input" id="ref-medidas" placeholder="Ej: 33x120, 8cm, 45x45..." />
+            </div>
           </div>
         </div>
       </div>
@@ -1498,6 +1546,10 @@ function toDb(table, r){
     if('piezasBoxCocido' in m){ m.piezas_box_cocido = m.piezasBoxCocido; delete m.piezasBoxCocido; }
     if('boxDiaCocido'    in m){ m.box_dia_cocido    = m.boxDiaCocido;    delete m.boxDiaCocido; }
     if('boxDiaCortado'   in m){ m.box_dia_cortado   = m.boxDiaCortado;   delete m.boxDiaCortado; }
+    if('fachadaTipo'    in m){ m.fachada_tipo    = m.fachadaTipo;    delete m.fachadaTipo; }
+    if('fachadaEspesor' in m){ m.fachada_espesor = m.fachadaEspesor; delete m.fachadaEspesor; }
+    if('fachadaAncho'   in m){ m.fachada_ancho   = m.fachadaAncho;   delete m.fachadaAncho; }
+    if('fachadaLargo'   in m){ m.fachada_largo   = m.fachadaLargo;   delete m.fachadaLargo; }
   }
   if(table==='ordenes'){
     if('refId' in m){ m.ref_id = m.refId; delete m.refId; }
@@ -1533,6 +1585,10 @@ function fromDb(table, r){
     m.piezasBoxCocido = m.piezas_box_cocido; delete m.piezas_box_cocido;
     m.boxDiaCocido    = m.box_dia_cocido;    delete m.box_dia_cocido;
     m.boxDiaCortado   = m.box_dia_cortado;   delete m.box_dia_cortado;
+    m.fachadaTipo    = m.fachada_tipo;    delete m.fachada_tipo;
+    m.fachadaEspesor = m.fachada_espesor; delete m.fachada_espesor;
+    m.fachadaAncho   = m.fachada_ancho;   delete m.fachada_ancho;
+    m.fachadaLargo   = m.fachada_largo;   delete m.fachada_largo;
   }
   if(table==='ordenes'){
     m.refId = m.ref_id; delete m.ref_id;
@@ -4304,6 +4360,16 @@ async function openRefModal(id){
     }
     document.getElementById('ref-formato').value = r.formato||'';
     document.getElementById('ref-medidas').value = r.medidas||'';
+    document.getElementById('ref-fachada-tipo').value = r.fachadaTipo||'';
+    document.getElementById('ref-fachada-espesor').value = r.fachadaEspesor||'';
+    document.getElementById('ref-fachada-ancho').value = r.fachadaAncho||'';
+    document.getElementById('ref-fachada-largo').value = r.fachadaLargo||'';
+    if(r.fachadaTipo || r.fachadaEspesor){
+      document.getElementById('ref-tempio-cat-fachada').checked = true;
+    } else {
+      document.getElementById('ref-tempio-cat-otro').checked = true;
+    }
+    updateFachadaPreview();
     toggleLineaFields();
     toggleCajaField();
     document.getElementById('ref-aux-lines').innerHTML='';
@@ -4340,6 +4406,11 @@ function resetRefModal(){
   document.getElementById('ref-linea-mayor').checked=true;
   document.getElementById('ref-formato').value='';
   document.getElementById('ref-medidas').value='';
+  document.getElementById('ref-fachada-tipo').value='';
+  document.getElementById('ref-fachada-espesor').value='';
+  document.getElementById('ref-fachada-ancho').value='';
+  document.getElementById('ref-fachada-largo').value='';
+  document.getElementById('ref-tempio-cat-otro').checked=true;
   toggleLineaFields();
   document.getElementById('ref-aux-lines').innerHTML='';
   toggleCajaField();
@@ -4366,8 +4437,34 @@ function toggleLineaFields(){
     dbGet('refs').then(refs=>{
       const formatos = [...new Set(refs.filter(r=>r.linea==='Tempio'&&r.formato).map(r=>r.formato))].sort();
       document.getElementById('ref-formato-list').innerHTML = formatos.map(f=>`<option value="${f}">`).join('');
+
+      const tipos = [...new Set(refs.filter(r=>r.linea==='Tempio'&&r.fachadaTipo).map(r=>r.fachadaTipo))].sort();
+      document.getElementById('ref-fachada-tipo-list').innerHTML = tipos.map(t=>`<option value="${t}">`).join('');
+
+      const espesores = [...new Set(refs.filter(r=>r.linea==='Tempio'&&r.fachadaEspesor).map(r=>r.fachadaEspesor))].sort();
+      document.getElementById('ref-fachada-espesor-list').innerHTML = espesores.map(e=>`<option value="${e}">`).join('');
+
+      const anchos = [...new Set(refs.filter(r=>r.linea==='Tempio'&&r.fachadaAncho).map(r=>r.fachadaAncho))].sort((a,b)=>a-b);
+      document.getElementById('ref-fachada-ancho-list').innerHTML = anchos.map(a=>`<option value="${a}">`).join('');
     });
+    toggleTempioCategoria();
   }
+}
+
+function toggleTempioCategoria(){
+  const esFachada = document.getElementById('ref-tempio-cat-fachada').checked;
+  document.getElementById('ref-fachada-fields').style.display = esFachada?'block':'none';
+  document.getElementById('ref-otro-fields').style.display    = esFachada?'none':'block';
+}
+
+function updateFachadaPreview(){
+  const tipo = document.getElementById('ref-fachada-tipo').value.trim().toUpperCase();
+  const esp  = document.getElementById('ref-fachada-espesor').value.trim();
+  const ancho = document.getElementById('ref-fachada-ancho').value.trim();
+  const largo = document.getElementById('ref-fachada-largo').value.trim();
+  const formato = (tipo&&esp) ? `${tipo}${esp}` : '—';
+  const medida  = (ancho&&largo) ? `${ancho}X${largo}` : '';
+  document.getElementById('ref-fachada-preview').textContent = medida ? `${formato} ${medida}` : formato;
 }
 
 function toggleCajaField(){
@@ -4425,10 +4522,27 @@ async function saveRef(){
   });
 
   const linea = document.querySelector('input[name="ref-linea"]:checked')?.value||'Mayor';
-  const formato = linea==='Tempio' ? document.getElementById('ref-formato').value.trim() : '';
-  const medidas = linea==='Tempio' ? document.getElementById('ref-medidas').value.trim() : '';
-  if(linea==='Tempio' && !formato){ showToast('Introduce el formato','error'); return; }
-  if(linea==='Tempio' && !medidas){ showToast('Introduce las medidas','error'); return; }
+  const esFachada = linea==='Tempio' && document.getElementById('ref-tempio-cat-fachada').checked;
+
+  let formato='', medidas='', fachadaTipo='', fachadaEspesor='', fachadaAncho=null, fachadaLargo=null;
+
+  if(linea==='Tempio' && esFachada){
+    fachadaTipo    = document.getElementById('ref-fachada-tipo').value.trim().toUpperCase();
+    fachadaEspesor = document.getElementById('ref-fachada-espesor').value.trim();
+    fachadaAncho   = parseInt(document.getElementById('ref-fachada-ancho').value)||null;
+    fachadaLargo   = parseInt(document.getElementById('ref-fachada-largo').value)||null;
+    if(!fachadaTipo){ showToast('Introduce el tipo de fachada','error'); return; }
+    if(!fachadaEspesor){ showToast('Introduce el espesor','error'); return; }
+    if(!fachadaAncho){ showToast('Introduce el ancho','error'); return; }
+    if(!fachadaLargo){ showToast('Introduce el largo','error'); return; }
+    formato = `${fachadaTipo}${fachadaEspesor}`;
+    medidas = `${fachadaAncho}X${fachadaLargo}`;
+  } else if(linea==='Tempio'){
+    formato = document.getElementById('ref-formato').value.trim();
+    medidas = document.getElementById('ref-medidas').value.trim();
+    if(!formato){ showToast('Introduce el formato','error'); return; }
+    if(!medidas){ showToast('Introduce las medidas','error'); return; }
+  }
 
   const id = document.getElementById('ref-edit-id').value;
   const articulo = document.getElementById('ref-articulo').value.trim();
@@ -4437,7 +4551,7 @@ async function saveRef(){
   const boxDiaCocido    = parseInt(document.getElementById('ref-box-dia-cocido').value)||0;
   const boxDiaCortado   = parseInt(document.getElementById('ref-box-dia-cortado').value)||0;
   if(!proddia||proddia<1){ showToast('Introduce piezas/box seco y box/día cocido para calcular la producción diaria','error'); return; }
-  const row = {nombre,articulo,proddia,llevaCaja,paleId:paleId||null,cajaId:cajaId||null,cajasPale,piezasCaja,piezasPale,auxiliares:auxLines,linea,formato,medidas,piezasBoxSeco,piezasBoxCocido,boxDiaCocido,boxDiaCortado};
+  const row = {nombre,articulo,proddia,llevaCaja,paleId:paleId||null,cajaId:cajaId||null,cajasPale,piezasCaja,piezasPale,auxiliares:auxLines,linea,formato,medidas,piezasBoxSeco,piezasBoxCocido,boxDiaCocido,boxDiaCortado,fachadaTipo,fachadaEspesor,fachadaAncho,fachadaLargo};
 
   setLoading(true);
   if(id){
@@ -4498,12 +4612,26 @@ async function renderRefs(){
   const mayor   = refs.filter(r=>r.linea!=='Tempio');
   const tempio  = refs.filter(r=>r.linea==='Tempio');
 
-  // Agrupar Tempio por formato
-  const tempioGroups = {};
-  tempio.forEach(r=>{
+  // Tempio por formato: separar fachadas (tienen fachadaTipo) del resto
+  const fachadas = tempio.filter(r=>r.fachadaTipo);
+  const otrosTempio = tempio.filter(r=>!r.fachadaTipo);
+
+  // Agrupar fachadas: formato (tipo+espesor) → ancho → refs
+  const fachadaGroups = {};
+  fachadas.forEach(r=>{
+    const f = r.formato||'—';
+    if(!fachadaGroups[f]) fachadaGroups[f]={};
+    const a = r.fachadaAncho||0;
+    if(!fachadaGroups[f][a]) fachadaGroups[f][a]=[];
+    fachadaGroups[f][a].push(r);
+  });
+
+  // Agrupar el resto de Tempio por formato (plano, como antes)
+  const otroGroups = {};
+  otrosTempio.forEach(r=>{
     const f = r.formato||'Sin formato';
-    if(!tempioGroups[f]) tempioGroups[f]=[];
-    tempioGroups[f].push(r);
+    if(!otroGroups[f]) otroGroups[f]=[];
+    otroGroups[f].push(r);
   });
 
   function refRow(r){
@@ -4535,7 +4663,22 @@ async function renderRefs(){
     return `<tr><td colspan="6" style="padding:14px 16px 6px;background:var(--surface2);font-size:11px;font-weight:600;color:${color};text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid var(--border);">${label}</td></tr>`;
   }
 
+  // Fila plegable de nivel 1 (formato) — click alterna filas hijas
+  function toggleRow(groupId){
+    const rows = document.querySelectorAll(`tr[data-parent="${groupId}"]`);
+    const icon = document.getElementById(`icon-${groupId}`);
+    const isOpen = rows.length && rows[0].style.display !== 'none';
+    rows.forEach(r=>r.style.display = isOpen ? 'none' : '');
+    if(icon) icon.textContent = isOpen ? '▶' : '▼';
+    // si se cierra el padre, cerrar también los hijos anidados (anchos)
+    if(isOpen){
+      document.querySelectorAll(`tr[data-ancestor="${groupId}"]`).forEach(r=>r.style.display='none');
+    }
+  }
+  window.toggleRow = toggleRow;
+
   let html = '';
+  let gid = 0;
 
   // Mayor
   if(mayor.length){
@@ -4543,12 +4686,40 @@ async function renderRefs(){
     html += mayor.map(refRow).join('');
   }
 
-  // Tempio por formato
+  // Tempio
   if(tempio.length){
     html += sectionHeader('Tempio','var(--accent)');
-    Object.keys(tempioGroups).sort().forEach(formato=>{
+
+    // Fachadas ventiladas: formato → ancho → refs (árbol de dos niveles)
+    Object.keys(fachadaGroups).sort().forEach(formato=>{
+      const gFormato = `f${gid++}`;
+      const anchos = fachadaGroups[formato];
+      const totalRefs = Object.values(anchos).reduce((s,arr)=>s+arr.length,0);
+      html += `<tr style="cursor:pointer;" onclick="toggleRow('${gFormato}')">
+        <td colspan="6" style="padding:9px 16px 9px 28px;font-size:12px;color:var(--text);font-weight:600;background:var(--bg);border-bottom:1px solid var(--border);">
+          <span id="icon-${gFormato}" style="display:inline-block;width:14px;color:var(--text3);">▶</span> ${formato}
+          <span style="color:var(--text3);font-weight:400;margin-left:6px;">(${totalRefs} ref${totalRefs!==1?'s':''})</span>
+        </td>
+      </tr>`;
+      Object.keys(anchos).sort((a,b)=>a-b).forEach(ancho=>{
+        const gAncho = `a${gid++}`;
+        const refsAncho = anchos[ancho];
+        html += `<tr data-parent="${gFormato}" style="display:none;cursor:pointer;" onclick="toggleRow('${gAncho}')">
+          <td colspan="6" style="padding:7px 16px 7px 52px;font-size:11px;color:var(--text2);font-weight:500;background:var(--bg);border-bottom:1px solid var(--border);">
+            <span id="icon-${gAncho}" style="display:inline-block;width:14px;color:var(--text3);">▶</span> Ancho ${ancho}
+            <span style="color:var(--text3);font-weight:400;margin-left:6px;">(${refsAncho.length})</span>
+          </td>
+        </tr>`;
+        refsAncho.sort((a,b)=>(a.fachadaLargo||0)-(b.fachadaLargo||0)).forEach(r=>{
+          html += refRow(r).replace('<tr>', `<tr data-parent="${gAncho}" data-ancestor="${gFormato}" style="display:none;">`);
+        });
+      });
+    });
+
+    // Resto de Tempio (rodapiés, peldaños...): plano por formato, como antes
+    Object.keys(otroGroups).sort().forEach(formato=>{
       html += `<tr><td colspan="6" style="padding:8px 16px 4px 28px;font-size:11px;color:var(--text2);font-weight:500;background:var(--bg);border-bottom:1px solid var(--border);">— ${formato}</td></tr>`;
-      html += tempioGroups[formato].map(refRow).join('');
+      html += otroGroups[formato].map(refRow).join('');
     });
   }
 
