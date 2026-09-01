@@ -1524,7 +1524,7 @@ async function dbUpdate(table, id, row){
 
 async function dbDelete(table, id){
   const {error} = await supa.from(table).delete().eq('id',id);
-  if(error){ console.error('dbDelete',table,error); showToast('Error al eliminar','error'); return false; }
+  if(error){ console.error('dbDelete',table, JSON.stringify(error)); showToast('Error: '+error.message,'error'); return false; }
   delete _cache[table];
   return true;
 }
@@ -4589,10 +4589,12 @@ async function deleteRef(id){
   const r = refs.find(x=>x.id===id);
   showConfirm(`Eliminar "${r?.nombre}"`,`¿Seguro que quieres eliminar esta referencia?`,async()=>{
     setLoading(true);
-    await dbDelete('refs',id);
+    const ok = await dbDelete('refs',id);
     setLoading(false);
-    await renderRefs();
-    showToast('Referencia eliminada');
+    if(ok){
+      await renderRefs();
+      showToast('Referencia eliminada');
+    }
   });
 }
 
