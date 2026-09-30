@@ -4587,13 +4587,38 @@ async function editRef(id){ openRefModal(id); }
 async function deleteRef(id){
   const refs = await dbGet('refs');
   const r = refs.find(x=>x.id===id);
-  showConfirm(`Eliminar "${r?.nombre}"`,`¿Seguro que quieres eliminar esta referencia?`,async()=>{
+  const [ordenes, consumos] = await Promise.all([dbGet('ordenes'), dbGet('consumos')]);
+  const ordenesRel  = ordenes.filter(o=>o.refId===id);
+  const consumosRel = consumos.filter(c=>c.refId===id);
+
+  let msg = '¿Seguro que quieres eliminar esta referencia?';
+  const partes = [];
+  if(ordenesRel.length)  partes.push(`${ordenesRel.length} orden${ordenesRel.length!==1?'es':''}`);
+  if(consumosRel.length) partes.push(`${consumosRel.length} registro${consumosRel.length!==1?'s':''} de consumo`);
+  if(partes.length){
+    msg = `Esta referencia tiene ${partes.join(' y ')} asociad${ordenesRel.length?'as':'os'} que también se eliminarán. ¿Seguro que quieres continuar?`;
+  }
+
+  showConfirm(`Eliminar "${r?.nombre}"`, msg, async()=>{
     setLoading(true);
-    const ok = await dbDelete('refs',id);
+    let ok = true;
+    for(const o of ordenesRel){
+      const okO = await dbDelete('ordenes', o.id);
+      if(!okO) ok = false;
+    }
+    for(const c of consumosRel){
+      const okC = await dbDelete('consumos', c.id);
+      if(!okC) ok = false;
+    }
+    if(ok){
+      ok = await dbDelete('refs', id);
+    }
     setLoading(false);
     if(ok){
       await renderRefs();
       showToast('Referencia eliminada');
+    } else {
+      showToast('No se pudo eliminar la referencia por completo. Revisa la consola.','error');
     }
   });
 }
