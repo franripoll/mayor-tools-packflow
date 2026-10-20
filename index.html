@@ -2182,7 +2182,20 @@ async function calcConsumo(){
   calcEl.style.display='block';
 }
 
+let _savingConsumo = false;
 async function saveConsumo(){
+  if(_savingConsumo) return;
+  _savingConsumo = true;
+  const btn = document.querySelector('#modal-consumo .btn-primary');
+  if(btn){ btn.disabled = true; btn.style.opacity = '.5'; }
+  try{
+    await _saveConsumoInner();
+  } finally {
+    _savingConsumo = false;
+    if(btn){ btn.disabled = false; btn.style.opacity = ''; }
+  }
+}
+async function _saveConsumoInner(){
   const refId = document.getElementById('con-ref').value;
   if(!refId){ showToast('Selecciona una referencia','error'); return; }
   const numPales = parseInt(document.getElementById('con-pales').value);
@@ -2818,7 +2831,20 @@ document.getElementById('modal-recepcion').addEventListener('click',function(e){
   if(e.target===this) closeRecepcionModal();
 });
 
+let _savingRecepcion = false;
 async function saveRecepcion(){
+  if(_savingRecepcion) return;
+  _savingRecepcion = true;
+  const btn = document.querySelector('#modal-recepcion .btn-primary');
+  if(btn){ btn.disabled = true; btn.style.opacity = '.5'; }
+  try{
+    await _saveRecepcionInner();
+  } finally {
+    _savingRecepcion = false;
+    if(btn){ btn.disabled = false; btn.style.opacity = ''; }
+  }
+}
+async function _saveRecepcionInner(){
   const pedidoId=document.getElementById('rec-pedido-id').value;
   const proveedor=document.getElementById('rec-proveedor').value.trim();
   const fecha=document.getElementById('rec-fecha').value||new Date().toISOString().slice(0,10);
