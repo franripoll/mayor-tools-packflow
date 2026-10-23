@@ -1167,6 +1167,23 @@
   </div>
 </div>
 
+<!-- MODAL CONSULTA REFERENCIA (solo lectura) -->
+<div class="modal-backdrop" id="modal-ref-view">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-header">
+      <span class="modal-title" id="ref-view-title">Referencia</span>
+      <button class="modal-close" onclick="closeRefView()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="ref-view-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeRefView()">Cerrar</button>
+      <button class="btn btn-primary" id="ref-view-edit-btn">Editar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL REFERENCIA -->
 <div class="modal-backdrop" id="modal-ref">
   <div class="modal" style="max-width:620px;">
@@ -4610,6 +4627,78 @@ async function saveRef(){
 
 async function editRef(id){ openRefModal(id); }
 
+// ── Consulta de referencia (solo lectura) ──
+async function verRef(id){
+  const [refs, pales, cajas, auxs] = await Promise.all([dbGet('refs'), dbGet('pales'), dbGet('cajas'), dbGet('aux')]);
+  const r = refs.find(x=>x.id===id);
+  if(!r) return;
+  const pale = pales.find(p=>p.id===r.paleId);
+  const caja = cajas.find(c=>c.id===r.cajaId);
+  const num = v => (v||v===0) ? Number(v).toLocaleString('es-ES') : '';
+  const row = (label, value) => (value===''||value==null) ? '' :
+    `<div style="display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+       <span style="color:var(--text3);">${label}</span>
+       <span style="color:var(--text);text-align:right;font-weight:500;">${value}</span>
+     </div>`;
+  const sec = t => `<div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin:18px 0 4px;">${t}</div>`;
+
+  const piezasPale = r.llevaCaja && r.piezasCaja>0 && r.cajasPale>0
+    ? r.piezasCaja*r.cajasPale : (r.piezasPale||0);
+
+  let h = '';
+  h += sec('General');
+  h += row('Nombre', r.nombre);
+  h += row('Artículo', r.articulo);
+  h += row('Línea', r.linea||'Mayor');
+  if(r.linea==='Tempio'){
+    h += row('Formato', r.formato);
+    h += row('Medidas', r.medidas);
+    if(r.fachadaTipo){
+      h += row('Fachada · tipo', r.fachadaTipo);
+      h += row('Fachada · espesor', r.fachadaEspesor);
+      h += row('Fachada · ancho', r.fachadaAncho ? num(r.fachadaAncho)+' mm' : '');
+      h += row('Fachada · largo', r.fachadaLargo ? num(r.fachadaLargo)+' mm' : '');
+    }
+  } else {
+    h += row('Medidas', r.medidas);
+  }
+
+  h += sec('Embalaje');
+  h += row('Palé', pale ? pale.nombre + (pale.dims?' · '+pale.dims:'') : 'Sin asignar');
+  h += row('Lleva caja', r.llevaCaja ? 'Sí' : 'No');
+  if(r.llevaCaja){
+    h += row('Caja', caja ? caja.nombre : 'Sin asignar');
+    h += row('Piezas por caja', num(r.piezasCaja));
+    h += row('Cajas por palé', num(r.cajasPale));
+  }
+  h += row('Piezas por palé', num(piezasPale));
+
+  h += sec('Producción');
+  h += row('Producción diaria', r.proddia ? num(r.proddia)+' pzas/día' : '');
+  h += row('Piezas por box (seco)', num(r.piezasBoxSeco));
+  h += row('Piezas por box (cocido)', num(r.piezasBoxCocido));
+  h += row('Box/día cocido', num(r.boxDiaCocido));
+  h += row('Box/día cortado', num(r.boxDiaCortado));
+
+  h += sec('Material auxiliar por palé');
+  const auxRows = (r.auxiliares||[]).map(a=>{
+    const aux = auxs.find(x=>x.id===a.auxId);
+    return aux ? row(aux.nombre, `${num(a.qty)} ${aux.unidad}`) : '';
+  }).join('');
+  h += auxRows || '<div style="font-size:13px;color:var(--text3);padding:8px 0;">Sin material auxiliar</div>';
+
+  document.getElementById('ref-view-title').textContent = r.nombre;
+  document.getElementById('ref-view-body').innerHTML = h;
+  document.getElementById('ref-view-edit-btn').onclick = ()=>{ closeRefView(); editRef(r.id); };
+  document.getElementById('modal-ref-view').classList.add('open');
+}
+function closeRefView(){
+  document.getElementById('modal-ref-view').classList.remove('open');
+}
+document.getElementById('modal-ref-view').addEventListener('click',function(e){
+  if(e.target===this) closeRefView();
+});
+
 async function deleteRef(id){
   const refs = await dbGet('refs');
   const r = refs.find(x=>x.id===id);
@@ -4687,7 +4776,7 @@ async function renderRefs(){
     otroGroups[f].push(r);
   });
 
-  function refRow(r){
+  function refRow(r, extraAttrs=''){
     const pale = pales.find(p=>p.id===r.paleId);
     const caja = cajas.find(c=>c.id===r.cajaId);
     const pills = [];
@@ -4697,13 +4786,13 @@ async function renderRefs(){
       const aux=auxs.find(x=>x.id===a.auxId);
       if(aux) pills.push(`${a.qty} ${aux.unidad} ${aux.nombre}`);
     });
-    return `<tr>
+    return `<tr ${extraAttrs} onclick="verRef('${r.id}')" style="cursor:pointer;${/data-hidden/.test(extraAttrs)?'display:none;':''}">
       <td><strong>${r.nombre}</strong>${r.medidas?`<span style="font-size:11px;color:var(--text3);margin-left:6px;">${r.medidas}</span>`:''}</td>
       <td class="td-muted">${pale?pale.nombre:'<span style="color:var(--alert);font-size:11px;">Sin asignar</span>'}</td>
       <td>${r.llevaCaja?(caja?`<span class="badge badge-accent">${caja.nombre}</span>`:'<span style="color:var(--alert);font-size:11px;">Sin asignar</span>'):'<span class="badge badge-neutral">Sin caja</span>'}</td>
       <td class="td-muted">${r.proddia.toLocaleString('es-ES')} pzas/día${(r.boxDiaCocido||r.boxDiaCortado)?`<div style="font-size:10px;color:var(--text3);margin-top:2px;">${r.boxDiaCocido?`🔥 ${r.boxDiaCocido} box/d`:''}${r.boxDiaCocido&&r.boxDiaCortado?' · ':''}${r.boxDiaCortado?`✂ ${r.boxDiaCortado} box/d`:''}</div>`:''}</td>
       <td><div class="receta-pills">${pills.map(p=>`<span class="receta-pill">${p}</span>`).join('')||'<span style="color:var(--text3);font-size:11px;">Solo palé</span>'}</div></td>
-      <td><div class="td-actions">
+      <td onclick="event.stopPropagation()"><div class="td-actions">
         <button class="btn btn-ghost btn-sm" onclick="editRef('${r.id}')">Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteRef('${r.id}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -4764,7 +4853,7 @@ async function renderRefs(){
           </td>
         </tr>`;
         refsAncho.sort((a,b)=>(a.fachadaLargo||0)-(b.fachadaLargo||0)).forEach(r=>{
-          html += refRow(r).replace('<tr>', `<tr data-parent="${gAncho}" data-ancestor="${gFormato}" style="display:none;">`);
+          html += refRow(r, `data-parent="${gAncho}" data-ancestor="${gFormato}" data-hidden="1"`);
         });
       });
     });
