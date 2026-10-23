@@ -4634,58 +4634,94 @@ async function verRef(id){
   if(!r) return;
   const pale = pales.find(p=>p.id===r.paleId);
   const caja = cajas.find(c=>c.id===r.cajaId);
-  const num = v => (v||v===0) ? Number(v).toLocaleString('es-ES') : '';
-  const row = (label, value) => (value===''||value==null) ? '' :
-    `<div style="display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
-       <span style="color:var(--text3);">${label}</span>
-       <span style="color:var(--text);text-align:right;font-weight:500;">${value}</span>
-     </div>`;
-  const sec = t => `<div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin:18px 0 4px;">${t}</div>`;
-
+  const num = v => (v||v===0) ? Number(v).toLocaleString('es-ES') : '—';
   const piezasPale = r.llevaCaja && r.piezasCaja>0 && r.cajasPale>0
     ? r.piezasCaja*r.cajasPale : (r.piezasPale||0);
 
+  const chip = (t, strong) => `<span style="display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;${strong?'background:var(--accent);color:#0F1117;':'background:var(--surface2);color:var(--text2);border:1px solid var(--border);'}">${t}</span>`;
+  const tile = (label, value, unit, accent) => `
+    <div style="background:var(--surface2);border:1px solid ${accent?'var(--accent)':'var(--border)'};border-radius:10px;padding:12px 14px;min-width:0;">
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;">${label}</div>
+      <div style="font-size:22px;font-weight:700;color:${accent?'var(--accent)':'var(--text)'};margin-top:4px;line-height:1.1;">${value}${unit?`<span style="font-size:11px;font-weight:500;color:var(--text3);margin-left:4px;">${unit}</span>`:''}</div>
+    </div>`;
+  const sec = t => `<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin:22px 0 10px;">${t}</div>`;
+  const grid = (items, min=130) => `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(${min}px,1fr));gap:10px;">${items.join('')}</div>`;
+  const step = (icon, big, label, sub) => `
+    <div style="flex:1;min-width:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 10px;text-align:center;">
+      <div style="font-size:20px;line-height:1;">${icon}</div>
+      <div style="font-size:20px;font-weight:700;color:var(--text);margin-top:6px;">${big}</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px;">${label}</div>
+      ${sub?`<div style="font-size:10px;color:var(--text3);margin-top:4px;word-break:break-word;">${sub}</div>`:''}
+    </div>`;
+  const arrow = `<div style="display:flex;align-items:center;color:var(--text3);font-size:16px;">→</div>`;
+
   let h = '';
-  h += sec('General');
-  h += row('Nombre', r.nombre);
-  h += row('Artículo', r.articulo);
-  h += row('Línea', r.linea||'Mayor');
-  if(r.linea==='Tempio'){
-    h += row('Formato', r.formato);
-    h += row('Medidas', r.medidas);
-    if(r.fachadaTipo){
-      h += row('Fachada · tipo', r.fachadaTipo);
-      h += row('Fachada · espesor', r.fachadaEspesor);
-      h += row('Fachada · ancho', r.fachadaAncho ? num(r.fachadaAncho)+' mm' : '');
-      h += row('Fachada · largo', r.fachadaLargo ? num(r.fachadaLargo)+' mm' : '');
-    }
-  } else {
-    h += row('Medidas', r.medidas);
+
+  // Cabecera: artículo + chips
+  const chips = [chip(r.linea||'Mayor', true)];
+  if(r.formato) chips.push(chip(r.formato));
+  if(r.medidas) chips.push(chip(r.medidas));
+  if(r.fachadaTipo) chips.push(chip('Fachada '+r.fachadaTipo+(r.fachadaEspesor?' · '+r.fachadaEspesor+' mm':'')));
+  h += `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${chips.join('')}</div>`;
+  if(r.articulo) h += `<div style="font-family:monospace;font-size:12px;color:var(--text3);margin-top:8px;">Artículo ${r.articulo}</div>`;
+
+  // KPIs principales
+  h += `<div style="margin-top:16px;">${grid([
+    tile('Producción diaria', num(r.proddia), 'pzas/día', true),
+    tile('Piezas por palé', num(piezasPale), 'pzas', false),
+  ], 150)}</div>`;
+
+  // Fachada: dimensiones
+  if(r.fachadaTipo && (r.fachadaAncho || r.fachadaLargo)){
+    h += sec('Dimensiones');
+    h += grid([
+      tile('Ancho', num(r.fachadaAncho), 'mm'),
+      tile('Largo', num(r.fachadaLargo), 'mm'),
+      tile('Espesor', r.fachadaEspesor||'—', r.fachadaEspesor?'mm':''),
+    ], 100);
   }
 
+  // Embalaje como cadena visual
   h += sec('Embalaje');
-  h += row('Palé', pale ? pale.nombre + (pale.dims?' · '+pale.dims:'') : 'Sin asignar');
-  h += row('Lleva caja', r.llevaCaja ? 'Sí' : 'No');
   if(r.llevaCaja){
-    h += row('Caja', caja ? caja.nombre : 'Sin asignar');
-    h += row('Piezas por caja', num(r.piezasCaja));
-    h += row('Cajas por palé', num(r.cajasPale));
+    h += `<div style="display:flex;gap:6px;align-items:stretch;">
+      ${step('🧱', num(r.piezasCaja), 'pzas / caja', caja?caja.nombre:'<span style="color:var(--alert);">Caja sin asignar</span>')}
+      ${arrow}
+      ${step('📦', num(r.cajasPale), 'cajas / palé', '')}
+      ${arrow}
+      ${step('🟫', num(piezasPale), 'pzas / palé', pale?pale.nombre:'<span style="color:var(--alert);">Palé sin asignar</span>')}
+    </div>`;
+  } else {
+    h += `<div style="display:flex;gap:6px;align-items:stretch;">
+      ${step('🧱', num(r.piezasPale), 'pzas / palé', pale?pale.nombre:'<span style="color:var(--alert);">Palé sin asignar</span>')}
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text3);">Sin caja: va directamente sobre el palé.</div>`;
   }
-  h += row('Piezas por palé', num(piezasPale));
+  if(pale && pale.dims) h += `<div style="margin-top:8px;font-size:12px;color:var(--text3);">Dimensiones del palé: ${pale.dims} cm</div>`;
 
-  h += sec('Producción');
-  h += row('Producción diaria', r.proddia ? num(r.proddia)+' pzas/día' : '');
-  h += row('Piezas por box (seco)', num(r.piezasBoxSeco));
-  h += row('Piezas por box (cocido)', num(r.piezasBoxCocido));
-  h += row('Box/día cocido', num(r.boxDiaCocido));
-  h += row('Box/día cortado', num(r.boxDiaCortado));
+  // Producción
+  const prod = [];
+  if(r.piezasBoxSeco)   prod.push(tile('Pzas/box seco', num(r.piezasBoxSeco)));
+  if(r.piezasBoxCocido) prod.push(tile('Pzas/box cocido', num(r.piezasBoxCocido)));
+  if(r.boxDiaCocido)    prod.push(tile('🔥 Box/día cocido', num(r.boxDiaCocido)));
+  if(r.boxDiaCortado)   prod.push(tile('✂ Box/día cortado', num(r.boxDiaCortado)));
+  if(prod.length){
+    h += sec('Horno y corte');
+    h += grid(prod, 120);
+  }
 
+  // Auxiliares
   h += sec('Material auxiliar por palé');
-  const auxRows = (r.auxiliares||[]).map(a=>{
+  const auxItems = (r.auxiliares||[]).map(a=>{
     const aux = auxs.find(x=>x.id===a.auxId);
-    return aux ? row(aux.nombre, `${num(a.qty)} ${aux.unidad}`) : '';
+    return aux ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;">
+      <span style="color:var(--text);">${aux.nombre}</span>
+      <span style="color:var(--accent);font-weight:700;white-space:nowrap;">${num(a.qty)} <span style="font-size:11px;color:var(--text3);font-weight:500;">${aux.unidad}</span></span>
+    </div>` : '';
   }).join('');
-  h += auxRows || '<div style="font-size:13px;color:var(--text3);padding:8px 0;">Sin material auxiliar</div>';
+  h += auxItems
+    ? `<div style="display:flex;flex-direction:column;gap:6px;">${auxItems}</div>`
+    : '<div style="font-size:13px;color:var(--text3);">Sin material auxiliar</div>';
 
   document.getElementById('ref-view-title').textContent = r.nombre;
   document.getElementById('ref-view-body').innerHTML = h;
